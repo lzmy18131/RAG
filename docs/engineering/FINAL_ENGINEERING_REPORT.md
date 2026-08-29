@@ -1,6 +1,6 @@
 # RAG Final Engineering Report
 
-> RAG Final Pass（收尾）· HEAD `b6361ba`（文档清理后；功能交付 `df7ebdb`；本报告为当前唯一工程报告）· 仓库 lzmy18131/RAG
+> RAG Final Pass（收尾）· HEAD `1a388cd`（文档清理后最终；功能交付 `df7ebdb`；本报告为当前唯一工程报告）· 仓库 lzmy18131/RAG
 > 所有数字来自当前 commit 真实执行；NOT RUN 已注明。当前指标见 `docs/evaluation/CURRENT_RESUME_METRICS.md`。
 
 ## Final Architecture
