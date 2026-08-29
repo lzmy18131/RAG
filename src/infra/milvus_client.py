@@ -4,9 +4,14 @@ Uses the MilvusClient API (pymilvus >= 3.0) which supports both
 Milvus Lite (local file) and Milvus Server via configuration.
 """
 
-from pymilvus import MilvusClient
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from src.config.settings import settings
+
+if TYPE_CHECKING:
+    from pymilvus import MilvusClient
 
 
 class MilvusAdapter:
@@ -19,6 +24,8 @@ class MilvusAdapter:
 
     def connect(self) -> None:
         """Establish connection to Milvus (Lite or Server)."""
+        from pymilvus import MilvusClient  # 重型依赖，仅真正连接时导入
+
         if self.uri.startswith("http"):
             self._client = MilvusClient(uri=self.uri, token=self.token or None)
         else:

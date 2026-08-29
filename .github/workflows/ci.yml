@@ -113,6 +113,17 @@ jobs:
         working-directory: frontend
         run: npm ci && npx playwright install --with-deps chromium
       # webServer（playwright.config.ts）自动以 DEMO_MODE=true 启动后端与前端
+      - name: Preflight frontend dev server (diagnostic)
+        working-directory: frontend
+        continue-on-error: true
+        run: |
+          node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort > /tmp/vite-preflight.log 2>&1 &
+          VPID=$!
+          sleep 15
+          curl -s -o /dev/null -w "frontend_http=%{http_code}\n" http://127.0.0.1:5173/ || echo "frontend_http=FAIL"
+          echo "--- vite-preflight.log ---"
+          cat /tmp/vite-preflight.log || true
+          kill $VPID 2>/dev/null || true
       - name: Run E2E
         working-directory: frontend
         run: npx playwright test

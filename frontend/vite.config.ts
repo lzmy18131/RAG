@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '127.0.0.1', // 固定 IPv4，与 Playwright webServer url 探针严格一致（CI/Linux 下 localhost 解析不可控）
     port: 5173,
     strictPort: true,
     proxy: {

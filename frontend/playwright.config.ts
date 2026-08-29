@@ -20,18 +20,24 @@ export default defineConfig({
   },
   webServer: [
     {
-      command:
-        'python -c "import os;os.environ[\'DEMO_MODE\']=\'true\';from main import app;import uvicorn;uvicorn.run(app,host=\'127.0.0.1\',port=8000)"',
+      // 启动脚本自动选择解释器：本地 .venv（Windows/POSIX）优先，CI 用系统 python
+      command: "python scripts/start_demo_backend.py",
       cwd: "..",
       url: "http://127.0.0.1:8000/health/live",
       reuseExistingServer: true,
-      timeout: 60_000,
+      timeout: 90_000,
+      stdout: "pipe",
+      stderr: "pipe",
     },
     {
-      command: "npm run dev",
+      // 直接 node 调用 vite bin：绕过 npm 脚本层（CI 冷启动最稳）；host/port 与 vite.config 严格对齐
+      command:
+        "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort",
       url: "http://127.0.0.1:5173",
       reuseExistingServer: true,
-      timeout: 120_000,
+      timeout: 180_000,
+      stdout: "pipe",
+      stderr: "pipe",
     },
   ],
 });

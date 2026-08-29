@@ -1,7 +1,7 @@
 {
   "run_id": "demo_retrieval_v1",
-  "timestamp": "2026-08-29T13:16:17.548910+00:00",
-  "git_commit": "cc7bb87",
+  "timestamp": "2026-08-29T15:38:09.231165+00:00",
+  "git_commit": "0483f68",
   "dataset_version": "demo_golden_v1",
   "dataset_hash": "245f6000f970",
   "corpus_version": "demo-corpus-v1",

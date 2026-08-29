@@ -1,9 +1,14 @@
 """BGE-M3 embedding adapter.
 
 Loads BGE-M3 locally and exposes a minimal encode interface for smoke testing.
+
+sentence_transformers 是重型依赖（导入即 ~30s），仅在真正加载模型时才 import
+（Demo Mode 用 FakeEmbedder，完全不触碰该依赖 → 冷启动保持秒级）。
 """
 
-from sentence_transformers import SentenceTransformer
+from __future__ import annotations
+
+from typing import Any
 
 from src.config.settings import settings
 
@@ -21,10 +26,12 @@ class Embedder:
 
         self.model_name = model_name
         self.device = device
-        self._model: SentenceTransformer | None = None
+        self._model: Any = None  # SentenceTransformer 实例（延迟加载）
 
     def load(self) -> None:
         """Load the model into memory."""
+        from sentence_transformers import SentenceTransformer
+
         self._model = SentenceTransformer(self.model_name, device=self.device)
 
     @property

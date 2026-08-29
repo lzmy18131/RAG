@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os as _os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 _os.environ.setdefault("MILVUS_URI", "http://localhost:19530")
 
@@ -16,9 +16,10 @@ _PROJECT_ROOT = _Path(__file__).resolve().parents[2]
 _ENV_VALS = _dotenv_values(str(_PROJECT_ROOT / ".env"))
 _DEFAULT_MILVUS_URI = _ENV_VALS.get("MILVUS_URI", "milvus.db")
 
-from pymilvus import MilvusClient  # noqa: E402
-
 from src.infra.embedder import Embedder  # noqa: E402
+
+if TYPE_CHECKING:
+    from pymilvus import MilvusClient
 
 
 def make_source_file_filter(source_file: str) -> str:
@@ -51,6 +52,8 @@ class DenseRetriever:
 
     def _ensure_client(self) -> MilvusClient:
         if self._client is None:
+            from pymilvus import MilvusClient  # 重型依赖，仅真实向量库路径导入
+
             uri = self.uri
             if uri and not uri.startswith("http"):
                 uri = str(_PROJECT_ROOT / uri)
