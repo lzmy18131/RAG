@@ -111,6 +111,15 @@ def create_app(settings: Any = None) -> FastAPI:
         """应用版本（semver；与 V0-V9 实验版本区分）。"""
         return {"version": _app_version(), "name": "multimodal-rag"}
 
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint():
+        """Prometheus 兼容指标（audit O2）。"""
+        from fastapi.responses import PlainTextResponse
+
+        from src.api.metrics import metrics
+
+        return PlainTextResponse(metrics.render(), media_type="text/plain; version=0.0.4")
+
     return app
 
 

@@ -209,6 +209,9 @@ class Provider:
                 temperature=temperature,
             )
         except Exception as exc:  # noqa: BLE001 — classify, don't leak SDK types
+            from src.api.metrics import inc_provider_failure
+
+            inc_provider_failure(provider=self.cfg.model)
             if _classify_exc(exc):
                 raise RetryableProviderError(str(exc)) from exc
             raise NonRetryableProviderError(str(exc)) from exc

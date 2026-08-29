@@ -268,6 +268,9 @@ class GroundingVerifier:
     # ── Internal ──
 
     def _refuse(self, reason: str, unsupported: list[str] | None = None) -> dict:
+        from src.api.metrics import inc_grounding_rejection
+
+        inc_grounding_rejection()
         return {
             "supported": False,
             "confidence": 0.0,

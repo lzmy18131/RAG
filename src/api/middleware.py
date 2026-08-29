@@ -26,19 +26,32 @@ def get_request_id() -> str:
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """为每个请求注入 X-Request-ID 并建立日志关联。"""
+    """为每个请求注入 X-Request-ID 并建立日志关联；同时记录 HTTP 指标（audit O2）。"""
 
     async def dispatch(self, request: Request, call_next):
+        from src.api.metrics import inc_http_request
+
         client_id = request.headers.get("X-Request-ID", "")
         rid = client_id if client_id and len(client_id) <= 64 else uuid.uuid4().hex
         request.state.request_id = rid
         token = request_id_var.set(rid)
+        status = 500
+        response = None
         try:
             response = await call_next(request)
+            status = response.status_code
+            return response
         finally:
             request_id_var.reset(token)
-        response.headers["X-Request-ID"] = rid
-        return response
+            inc_http_request(request.method, _normalize_path(request.url.path), status)
+            if response is not None:
+                response.headers["X-Request-ID"] = rid
+
+
+def _normalize_path(path: str) -> str:
+    """路径归一化：长动态段折叠，避免指标高基数。"""
+    parts = path.split("/")
+    return "/".join("{id}" if len(p) >= 16 and p.isalnum() else p for p in parts)
 
 
 def error_response(code: str, message: str, status_code: int) -> JSONResponse:
