@@ -1,8 +1,5 @@
 """Smoke tests for configuration loading."""
 
-import os
-from pathlib import Path
-
 
 def test_settings_import() -> None:
     """Settings module should import without error."""

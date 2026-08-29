@@ -21,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 
 POISONS = [
@@ -31,11 +32,12 @@ POISONS = [
 
 def main() -> None:
     from src.infra.reranker import Reranker
-    from src.workflow.grounding import GroundingVerifier, CrossEncoderScorer
+    from src.workflow.grounding import CrossEncoderScorer, GroundingVerifier
 
     results = json.loads(
-        (PROJECT_ROOT / "storage" / "runs" / "v6_grounding" / "v6_results.json")
-        .read_text(encoding="utf-8")
+        (PROJECT_ROOT / "storage" / "runs" / "v6_grounding" / "v6_results.json").read_text(
+            encoding="utf-8"
+        )
     )
     rr = Reranker()
     rr.load()
@@ -59,23 +61,28 @@ def main() -> None:
             pv = verifier.verify(r["question"], poisoned, chunks)
             # The fabricated sentence should be the one containing the poison text
             hit = next(
-                (se for se in pv["sentence_evidence"]
-                 if se["status"] != "skipped_short" and poison[:10] in se["clean"]),
+                (
+                    se
+                    for se in pv["sentence_evidence"]
+                    if se["status"] != "skipped_short" and poison[:10] in se["clean"]
+                ),
                 None,
             )
             flagged = bool(hit and not hit["supported"])
             flipped = real["supported"] and not pv["supported"]
             n_flagged += int(flagged)
             n_flipped += int(flipped)
-            report.append({
-                "question": r["question"],
-                "poison": poison,
-                "poison_best_similarity": hit["best_similarity"] if hit else None,
-                "poison_flagged_unsupported": flagged,
-                "real_supported": real["supported"],
-                "poisoned_supported": pv["supported"],
-                "flipped_to_refused": flipped,
-            })
+            report.append(
+                {
+                    "question": r["question"],
+                    "poison": poison,
+                    "poison_best_similarity": hit["best_similarity"] if hit else None,
+                    "poison_flagged_unsupported": flagged,
+                    "real_supported": real["supported"],
+                    "poisoned_supported": pv["supported"],
+                    "flipped_to_refused": flipped,
+                }
+            )
 
     total = tested * len(POISONS)
     print(f"tested {tested} answered cases x {len(POISONS)} poisons = {total}")

@@ -37,9 +37,15 @@ def test_no_duplicate_questions(dataset: list[dict]) -> None:
 def test_required_fields(dataset: list[dict]) -> None:
     """Every question has all required fields."""
     required = [
-        "question", "reference_answer", "reference_contexts",
-        "question_type", "difficulty", "modality_required",
-        "gold_pages", "review_status", "source_document",
+        "question",
+        "reference_answer",
+        "reference_contexts",
+        "question_type",
+        "difficulty",
+        "modality_required",
+        "gold_pages",
+        "review_status",
+        "source_document",
     ]
     for i, q in enumerate(dataset):
         for field in required:
@@ -124,9 +130,9 @@ def test_result_source_values_valid() -> None:
     for r in data.get("per_question", []):
         src = r.get("result_source", "")
         assert src, "result_source must not be empty"
-        assert any(valid in src for valid in [
-            "phase1_cached", "phase2_cached", "phase2_generated"
-        ]), f"Invalid result_source: {src}"
+        assert any(
+            valid in src for valid in ["phase1_cached", "phase2_cached", "phase2_generated"]
+        ), f"Invalid result_source: {src}"
 
 
 def test_ragas_engine_labels_explicit() -> None:
@@ -142,9 +148,7 @@ def test_ragas_engine_labels_explicit() -> None:
 
 def test_phase2_metrics_not_overwrite_phase1() -> None:
     """phase2_metrics.json must be a different file from v0_results."""
-    v0_results = list(
-        (PROJECT_ROOT / "storage" / "runs" / "v0_baseline").glob("v0_results_*.json")
-    )
+    v0_results = list((PROJECT_ROOT / "storage" / "runs" / "v0_baseline").glob("v0_results_*.json"))
     phase2 = PROJECT_ROOT / "storage" / "runs" / "v0_baseline" / "phase2_metrics.json"
     for v0 in v0_results:
         assert v0.name != phase2.name, "phase2_metrics should not overwrite v0_results"

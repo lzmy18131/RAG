@@ -1,14 +1,19 @@
-"""IncrementalIndexer: add/modify/delete documents in-place in Milvus + BM25."""
+"""IncrementalIndexer: add/modify/delete documents in-place in Milvus + BM25.
+
+Per-file failure tolerance (audit P0-2): a failing file is recorded in
+``self.failures`` and skipped, so one bad PDF does not abort the whole batch.
+"""
 
 from __future__ import annotations
 
-import time
+import logging
 from pathlib import Path
 
-from src.ingestion.manifest import ManifestStore, file_hash, DocManifest
-from src.ingestion.document import _make_document_id, Chunk
-from src.ingestion.pdf_parser import parse_pdf
 from src.ingestion.chunker import chunk_document
+from src.ingestion.manifest import DocManifest, ManifestStore, file_hash
+from src.ingestion.pdf_parser import parse_pdf
+
+logger = logging.getLogger(__name__)
 
 
 class IncrementalIndexer:
@@ -28,6 +33,7 @@ class IncrementalIndexer:
         self.store = manifest_store
         self.embedder = embedder
         self.embed_call_count = 0
+        self.failures: list[dict] = []
 
     # ── Public API ──
 
@@ -40,9 +46,14 @@ class IncrementalIndexer:
 
         classified = self.store.classify(current_files)
         counts = {
-            "added": 0, "unchanged": 0, "modified": 0, "deleted": 0,
-            "reprocessed_pages": 0, "reused_chunks": 0,
-            "embedded_chunks": 0, "removed_chunks": 0,
+            "added": 0,
+            "unchanged": 0,
+            "modified": 0,
+            "deleted": 0,
+            "reprocessed_pages": 0,
+            "reused_chunks": 0,
+            "embedded_chunks": 0,
+            "removed_chunks": 0,
         }
 
         for path in classified["deleted"]:
@@ -54,16 +65,24 @@ class IncrementalIndexer:
 
         for path in classified["added"]:
             counts["added"] += 1
-            c = self._add_document(path)
-            counts["embedded_chunks"] += c["embedded"]
-            counts["reprocessed_pages"] += c["pages"]
+            try:
+                c = self._add_document(path)
+                counts["embedded_chunks"] += c["embedded"]
+                counts["reprocessed_pages"] += c["pages"]
+            except Exception as e:  # noqa: BLE001 - per-file 容错，坏文件不中断整批
+                self.failures.append({"path": path, "action": "added", "error": str(e)[:300]})
+                logger.warning("增量摄取失败(added): %s: %s", path, e)
 
         for path in classified["modified"]:
             counts["modified"] += 1
-            c = self._modify_document(path)
-            counts["embedded_chunks"] += c["embedded"]
-            counts["removed_chunks"] += c["removed"]
-            counts["reprocessed_pages"] += c["pages"]
+            try:
+                c = self._modify_document(path)
+                counts["embedded_chunks"] += c["embedded"]
+                counts["removed_chunks"] += c["removed"]
+                counts["reprocessed_pages"] += c["pages"]
+            except Exception as e:  # noqa: BLE001
+                self.failures.append({"path": path, "action": "modified", "error": str(e)[:300]})
+                logger.warning("增量摄取失败(modified): %s: %s", path, e)
 
         for path in classified["unchanged"]:
             m = self.store.get(path)
@@ -72,6 +91,7 @@ class IncrementalIndexer:
                 counts["reused_chunks"] += m.num_chunks
 
         self.store.save()
+        counts["failures"] = list(self.failures)
         return counts
 
     # ── Internal ──
@@ -84,23 +104,32 @@ class IncrementalIndexer:
         self.embed_call_count += 1
 
         data = []
-        for chunk, vec in zip(chunks, vectors):
-            data.append({
-                "chunk_id": chunk.chunk_id,
-                "document_id": chunk.document_id,
-                "page_number": chunk.page_number,
-                "content": chunk.content,
-                "content_type": chunk.content_type,
-                "source_file": chunk.source_file,
-                "document_version": chunk.document_version,
-                "vector": vec,
-            })
+        for chunk, vec in zip(chunks, vectors, strict=False):
+            data.append(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "document_id": chunk.document_id,
+                    "page_number": chunk.page_number,
+                    "content": chunk.content,
+                    "content_type": chunk.content_type,
+                    "source_file": chunk.source_file,
+                    "document_version": chunk.document_version,
+                    "vector": vec,
+                }
+            )
         self.client.insert(collection_name=self.collection, data=data)
 
         # Update BM25
-        bm25_chunks = [{"chunk_id": c.chunk_id, "page_number": c.page_number,
-                         "content_type": c.content_type, "source_file": c.source_file,
-                         "content": c.content} for c in chunks]
+        bm25_chunks = [
+            {
+                "chunk_id": c.chunk_id,
+                "page_number": c.page_number,
+                "content_type": c.content_type,
+                "source_file": c.source_file,
+                "content": c.content,
+            }
+            for c in chunks
+        ]
         self.bm25.add_chunks(bm25_chunks)
 
         manifest = DocManifest(

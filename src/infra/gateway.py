@@ -17,9 +17,9 @@ from __future__ import annotations
 import random
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Callable
 
 import openai
 
@@ -72,9 +72,11 @@ class ProviderConfig:
     model: str
 
     def is_configured(self) -> bool:
-        return bool(self.base_url and self.api_key and self.model) \
-            and "replace-me" not in self.api_key \
+        return (
+            bool(self.base_url and self.api_key and self.model)
+            and "replace-me" not in self.api_key
             and "api.example.com" not in self.base_url
+        )
 
 
 # ── Error classification ──
@@ -112,8 +114,7 @@ class CircuitBreaker:
 
     CLOSED, OPEN, HALF_OPEN = "CLOSED", "OPEN", "HALF_OPEN"
 
-    def __init__(self, config: CircuitConfig,
-                 now: Callable[[], float] | None = None):
+    def __init__(self, config: CircuitConfig, now: Callable[[], float] | None = None):
         self.config = config
         self._now = now or time.monotonic
         self._lock = threading.Lock()
@@ -194,8 +195,8 @@ class Provider:
                 self._client = openai.OpenAI(
                     base_url=self.cfg.base_url,
                     api_key=self.cfg.api_key,
-                    timeout=self.timeout,   # per-attempt cap
-                    max_retries=0,          # gateway owns retries (no SDK double-retry)
+                    timeout=self.timeout,  # per-attempt cap
+                    max_retries=0,  # gateway owns retries (no SDK double-retry)
                 )
             return self._client
 
@@ -251,8 +252,9 @@ class LLMGateway:
             return self._breakers[name]
 
     def _backoff(self, attempt: int) -> float:
-        delay = min(self.retry_policy.cap,
-                    self.retry_policy.base * (self.retry_policy.multiplier ** attempt))
+        delay = min(
+            self.retry_policy.cap, self.retry_policy.base * (self.retry_policy.multiplier**attempt)
+        )
         if self.retry_policy.jitter:
             delay = random.uniform(0.5 * delay, delay)
         return delay
@@ -276,7 +278,7 @@ class LLMGateway:
                     continue
                 except NonRetryableProviderError as exc:
                     last_errors.append({"provider": provider.name, "error": str(exc)})
-                    breaker.record_failure()      # 4xx → failover immediately
+                    breaker.record_failure()  # 4xx → failover immediately
                     break
                 # success
                 raw["provider"] = provider.name
@@ -301,8 +303,7 @@ class LLMGateway:
     def state_dump(self) -> dict:
         return {
             "providers": [
-                {"name": p.name, **self._breaker(p.name).state_dict()}
-                for p in self.providers
+                {"name": p.name, **self._breaker(p.name).state_dict()} for p in self.providers
             ]
         }
 
@@ -312,12 +313,13 @@ class LLMGateway:
 
 def _build_providers(settings) -> list[Provider]:
     cfgs = [
-        ProviderConfig("primary", settings.llm_base_url,
-                       settings.llm_api_key, settings.llm_model),
-        ProviderConfig("backup_2", settings.llm_base_url_2,
-                       settings.llm_api_key_2, settings.llm_model_2),
-        ProviderConfig("backup_3", settings.llm_base_url_3,
-                       settings.llm_api_key_3, settings.llm_model_3),
+        ProviderConfig("primary", settings.llm_base_url, settings.llm_api_key, settings.llm_model),
+        ProviderConfig(
+            "backup_2", settings.llm_base_url_2, settings.llm_api_key_2, settings.llm_model_2
+        ),
+        ProviderConfig(
+            "backup_3", settings.llm_base_url_3, settings.llm_api_key_3, settings.llm_model_3
+        ),
     ]
     timeout = settings.llm_timeout
     return [Provider(c, timeout=timeout) for c in cfgs if c.is_configured()]
@@ -331,6 +333,7 @@ def get_gateway() -> LLMGateway:
     call ``get_gateway.cache_clear()`` after editing .env at runtime.
     """
     from src.config.settings import settings
+
     return LLMGateway(
         providers=_build_providers(settings),
         retry_policy=RetryPolicy(

@@ -78,20 +78,30 @@ class FakeScorer:
         return [len(st & self._tokens(c)) / len(st) for c in chunk_texts]
 
 
-def _chunk(content: str, chunk_id: str = "c1", page: int = 24,
-           source: str = "manual.pdf", rerank_score: float | None = None) -> dict:
+def _chunk(
+    content: str,
+    chunk_id: str = "c1",
+    page: int = 24,
+    source: str = "manual.pdf",
+    rerank_score: float | None = None,
+) -> dict:
     return {
-        "chunk_id": chunk_id, "content": content, "source_file": source,
-        "page_number": page, "content_type": "text",
+        "chunk_id": chunk_id,
+        "content": content,
+        "source_file": source,
+        "page_number": page,
+        "content_type": "text",
         **({"rerank_score": rerank_score} if rerank_score is not None else {}),
     }
 
 
 from src.workflow.grounding import (  # noqa: E402
-    GroundingVerifier, _cos, _threshold_loop,
-    parse_citation_markers, split_sentences, strip_citation_markers,
+    GroundingVerifier,
+    _threshold_loop,
+    parse_citation_markers,
+    split_sentences,
+    strip_citation_markers,
 )
-
 
 # ── Sentence splitting ──
 
@@ -174,8 +184,13 @@ class TestGroundingVerifier:
     def test_verifier_dict_shape(self):
         v = self._verifier()
         r = v.verify("q", "电源充电完成。", [_chunk("电源充电完成")])
-        for key in ("supported", "confidence", "unsupported_claims",
-                    "evidence_chunk_ids", "reason"):
+        for key in (
+            "supported",
+            "confidence",
+            "unsupported_claims",
+            "evidence_chunk_ids",
+            "reason",
+        ):
             assert key in r
 
     def test_supported_sentence_high_similarity(self):
@@ -193,8 +208,7 @@ class TestGroundingVerifier:
     def test_descending_threshold_rescues_paraphrase(self):
         v = self._verifier()
         # 16-token sentence vs 4-token chunk → cos = sqrt(4/16) = 0.5
-        r = v.verify("q", "甲乙丙丁戊己庚辛壬癸子丑寅卯辰。",
-                     [_chunk("甲乙丙丁")])
+        r = v.verify("q", "甲乙丙丁戊己庚辛壬癸子丑寅卯辰。", [_chunk("甲乙丙丁")])
         assert r["supported"] is True
         se = r["sentence_evidence"][0]
         assert se["supported"] is True
@@ -202,8 +216,7 @@ class TestGroundingVerifier:
 
     def test_low_support_ratio_refused(self):
         v = self._verifier()
-        r = v.verify("q", "电源充电完成。子丑寅卯辰。巳午未申酉。",
-                     [_chunk("电源充电完成")])
+        r = v.verify("q", "电源充电完成。子丑寅卯辰。巳午未申酉。", [_chunk("电源充电完成")])
         assert r["supported"] is False
         assert len(r["unsupported_claims"]) == 2
 
@@ -226,27 +239,23 @@ class TestGroundingVerifier:
 
     def test_refusal_phrase_refused(self):
         v = self._verifier()
-        r = v.verify("q", "根据现有说明书内容无法回答此问题。",
-                     [_chunk("电源充电完成")])
+        r = v.verify("q", "根据现有说明书内容无法回答此问题。", [_chunk("电源充电完成")])
         assert r["supported"] is False
         assert r["unsupported_claims"] == ["generator self-refused"]
 
     def test_evidence_dedup(self):
         v = self._verifier()
-        r = v.verify("q", "电源充电完成。电源充电完成。",
-                     [_chunk("电源充电完成", chunk_id="c1")])
+        r = v.verify("q", "电源充电完成。电源充电完成。", [_chunk("电源充电完成", chunk_id="c1")])
         assert r["evidence_chunk_ids"] == ["c1"]
 
     def test_deterministic(self):
         v = self._verifier()
         chunks = [_chunk("电源充电完成")]
-        assert v.verify("q", "电源充电完成。", chunks) == \
-            v.verify("q", "电源充电完成。", chunks)
+        assert v.verify("q", "电源充电完成。", chunks) == v.verify("q", "电源充电完成。", chunks)
 
     def test_citation_audit(self):
         v = self._verifier(audit_citations=True)
-        chunk = _chunk("电源充电完成", chunk_id="c1", page=24,
-                       source="D:\\docs\\manual.pdf")
+        chunk = _chunk("电源充电完成", chunk_id="c1", page=24, source="D:\\docs\\manual.pdf")
         r = v.verify(
             "q",
             "电源充电完成[来源: manual.pdf, 第24页]。"
@@ -277,8 +286,7 @@ class TestCrossEncoderScorer:
     def test_scorer_rejects_fabrication(self):
         # topical-but-fabricated: disjoint tokens → score 0 → below floor
         v = GroundingVerifier(scorer=FakeScorer(), scorer_floor=0.1)
-        r = v.verify("q", "本产品由核聚变反应堆提供动力。",
-                     [_chunk("电源充电完成")])
+        r = v.verify("q", "本产品由核聚变反应堆提供动力。", [_chunk("电源充电完成")])
         assert r["supported"] is False
         assert len(r["unsupported_claims"]) == 1
         assert r["sentence_evidence"][0]["supported"] is False
@@ -293,8 +301,7 @@ class TestCrossEncoderScorer:
 
     def test_scorer_low_support_ratio_refused(self):
         v = GroundingVerifier(scorer=FakeScorer(), scorer_floor=0.1)
-        r = v.verify("q", "电源充电完成。甲乙丙丁戊。",
-                     [_chunk("电源充电完成")])
+        r = v.verify("q", "电源充电完成。甲乙丙丁戊。", [_chunk("电源充电完成")])
         # 1/2 supported → ratio 0.5 < 0.7 → refused
         assert r["supported"] is False
 
@@ -310,6 +317,7 @@ class TestGroundingInWorkflow:
 
     def test_supported_answer_answered(self):
         from src.workflow.verified_qa import VerifiedQA
+
         chunks = [_chunk("电源充电完成", page=24, rerank_score=0.5)]
         chunks[0]["rerank_score"] = 0.5
         retriever = self._make_retriever(chunks)
@@ -324,6 +332,7 @@ class TestGroundingInWorkflow:
 
     def test_unsupported_answer_refused_after_retry(self):
         from src.workflow.verified_qa import VerifiedQA
+
         chunks = [_chunk("电源充电完成", page=24)]
         chunks[0]["rerank_score"] = 0.5
         retriever = self._make_retriever(chunks)
@@ -331,8 +340,7 @@ class TestGroundingInWorkflow:
         def gen(question, cs):
             return {"answer": "电源充电完成。子丑寅卯辰。巳午未申酉。"}
 
-        vqa = VerifiedQA(retriever, gen, GroundingVerifier(FakeEmbedder()),
-                         max_retries=1)
+        vqa = VerifiedQA(retriever, gen, GroundingVerifier(FakeEmbedder()), max_retries=1)
         state = vqa.run("无法开机怎么办")
         assert state["final_status"] == "refused"
         assert state["retry_count"] == 1

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -69,7 +68,7 @@ class Document:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_pdf(cls, file_path: str) -> "Document":
+    def from_pdf(cls, file_path: str) -> Document:
         """Create a Document from a PDF file, computing version hash."""
         import fitz  # pymupdf
 
@@ -101,7 +100,7 @@ class Document:
             page_numbers=page_nums,
             metadata={
                 "total_pages": total_pages,
-                "parsed_at": datetime.now(timezone.utc).isoformat(),
+                "parsed_at": datetime.now(UTC).isoformat(),
             },
         )
 
@@ -110,7 +109,7 @@ class Document:
         chunks: list[Chunk] = []
         seq = 0
 
-        for page_idx, (text, page_num) in enumerate(zip(self.pages, self.page_numbers)):
+        for _, (text, page_num) in enumerate(zip(self.pages, self.page_numbers, strict=False)):
             # Simple fixed-size sliding window
             start = 0
             while start < len(text):

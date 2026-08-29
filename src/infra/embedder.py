@@ -4,6 +4,7 @@ Loads BGE-M3 locally and exposes a minimal encode interface for smoke testing.
 """
 
 from sentence_transformers import SentenceTransformer
+
 from src.config.settings import settings
 
 
@@ -15,6 +16,7 @@ class Embedder:
         device = device or settings.model_device
         if device == "auto":
             import torch
+
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model_name = model_name
@@ -35,9 +37,7 @@ class Embedder:
             raise RuntimeError("Model not loaded. Call load() first.")
         return self._model.encode(text, normalize_embeddings=True).tolist()
 
-    def encode_batch(
-        self, texts: list[str], batch_size: int = 8
-    ) -> list[list[float]]:
+    def encode_batch(self, texts: list[str], batch_size: int = 8) -> list[list[float]]:
         """Encode a batch of texts into float vectors."""
         if self._model is None:
             raise RuntimeError("Model not loaded. Call load() first.")

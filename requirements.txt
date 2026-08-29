@@ -1,30 +1,44 @@
-# ── Core dependencies ──
+# ── Core dependencies（audit P1-1：补齐缺失声明） ──
 
 # Configuration
 pydantic-settings>=2.0
 python-dotenv>=0.21
+pyyaml>=6.0
 
-# Deep learning
+# Web 框架
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.9
+
+# Deep learning（本地模型；Demo Mode 不需要）
 torch>=2.0
 sentence-transformers>=2.7
 
-# Vector database (Milvus Lite for dev)
+# Vector database（Milvus Lite 单进程模式）
 pymilvus>=2.4
 milvus-lite>=3.0
 
-# OpenAI-compatible API client
+# OpenAI-compatible API client（LLM / VLM）
 openai>=1.0
 
 # PDF parsing
 pymupdf>=1.28
 
-# YAML config
-pyyaml>=6.0
+# 检索
+jieba>=0.42
+rank-bm25>=0.2
 
-# RAG evaluation (Phase 2)
-ragas==0.4.3
+# 编排
+langgraph>=1.0
 langchain-openai>=0.3
+
+# RAG 评测（Phase 2；仅离线评测需要）
+ragas==0.4.3
 datasets>=2.0
 
-# Testing
-pytest>=7.0
+# ── Dev dependencies（可选安装） ──
+# pip install -r requirements-dev.txt
+# pytest>=7.0
+# pytest-asyncio>=0.24
+# pytest-cov>=5.0
+# ruff>=0.8

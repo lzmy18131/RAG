@@ -5,14 +5,15 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
@@ -38,6 +39,7 @@ def _compute_recall_at_k(gold_pages, retrieved_pages, k=5) -> float:
 
 def main() -> None:
     from pymilvus import MilvusClient
+
     from src.retrieval.hybrid_retriever import HybridRetriever
 
     milvus_path = str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db"))
@@ -67,25 +69,29 @@ def main() -> None:
             pages = [r["page_number"] for r in retrieved]
             types = [r.get("content_type", "text") for r in retrieved]
             channel = retrieved[0].get("retrieval_channel", mode) if retrieved else mode
-            all_results[mode].append({
-                "question": q_text,
-                "modality": modality,
-                "gold_pages": gold,
-                "mode": mode,
-                "retrieved_pages": pages,
-                "content_types": types,
-                "channel": channel,
-                "recall_at_5": round(_compute_recall_at_k(gold, pages), 4),
-                "mrr": round(_compute_mrr(gold, pages), 4),
-                "hit": bool(set(gold) & set(pages[:5])),
-                "top_result": {
-                    "page": retrieved[0]["page_number"] if retrieved else 0,
-                    "type": retrieved[0].get("content_type", "") if retrieved else "",
-                    "dense_rank": retrieved[0].get("dense_rank") if retrieved else None,
-                    "bm25_rank": retrieved[0].get("bm25_rank") if retrieved else None,
-                    "rrf_score": retrieved[0].get("rrf_score") if retrieved else None,
-                } if retrieved else None,
-            })
+            all_results[mode].append(
+                {
+                    "question": q_text,
+                    "modality": modality,
+                    "gold_pages": gold,
+                    "mode": mode,
+                    "retrieved_pages": pages,
+                    "content_types": types,
+                    "channel": channel,
+                    "recall_at_5": round(_compute_recall_at_k(gold, pages), 4),
+                    "mrr": round(_compute_mrr(gold, pages), 4),
+                    "hit": bool(set(gold) & set(pages[:5])),
+                    "top_result": {
+                        "page": retrieved[0]["page_number"] if retrieved else 0,
+                        "type": retrieved[0].get("content_type", "") if retrieved else "",
+                        "dense_rank": retrieved[0].get("dense_rank") if retrieved else None,
+                        "bm25_rank": retrieved[0].get("bm25_rank") if retrieved else None,
+                        "rrf_score": retrieved[0].get("rrf_score") if retrieved else None,
+                    }
+                    if retrieved
+                    else None,
+                }
+            )
 
     retriever.close()
 
@@ -106,21 +112,31 @@ def main() -> None:
         # Q18/Q19 special
         q18 = next((e for e in entries if "楼梯" in e["question"]), None)
         q19 = next((e for e in entries if "不动" in e["question"]), None)
-        summary[mode]["q18"] = {"hit": q18["hit"], "pages": q18["retrieved_pages"], "types": q18["content_types"]} if q18 else None
-        summary[mode]["q19"] = {"hit": q19["hit"], "pages": q19["retrieved_pages"], "types": q19["content_types"]} if q19 else None
+        summary[mode]["q18"] = (
+            {"hit": q18["hit"], "pages": q18["retrieved_pages"], "types": q18["content_types"]}
+            if q18
+            else None
+        )
+        summary[mode]["q19"] = (
+            {"hit": q19["hit"], "pages": q19["retrieved_pages"], "types": q19["content_types"]}
+            if q19
+            else None
+        )
 
     # ── Print ──
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"{'Mode':<10} {'Hits':<8} {'Hit Rate':<10} {'Recall@5':<10} {'MRR':<10}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for mode in modes:
         s = summary[mode]
-        print(f"{mode:<10} {s['hits']}/{s['total']:<5} {s['hit_rate']:<10.4f} {s['recall_at_5']:<10.4f} {s['mrr']:<10.4f}")
-    print(f"\nQ18 (image):")
+        print(
+            f"{mode:<10} {s['hits']}/{s['total']:<5} {s['hit_rate']:<10.4f} {s['recall_at_5']:<10.4f} {s['mrr']:<10.4f}"
+        )
+    print("\nQ18 (image):")
     for mode in modes:
         s = summary[mode]["q18"]
         print(f"  {mode}: {'HIT' if s['hit'] else 'MISS'} pages={s['pages']} types={s['types']}")
-    print(f"\nQ19 (text):")
+    print("\nQ19 (text):")
     for mode in modes:
         s = summary[mode]["q19"]
         print(f"  {mode}: {'HIT' if s['hit'] else 'MISS'} pages={s['pages']} types={s['types']}")

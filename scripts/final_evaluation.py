@@ -81,7 +81,16 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
         "recall_at_5": round(sum(r["recall_at_5"] for r in results) / len(results), 4),
         "mrr": round(sum(r["reciprocal_rank"] for r in results) / len(results), 4),
         "top1_hit_rate": round(
-            sum(int(bool(r["gold_pages"] and r["retrieved_pages"] and r["retrieved_pages"][0] in r["gold_pages"])) for r in results)
+            sum(
+                int(
+                    bool(
+                        r["gold_pages"]
+                        and r["retrieved_pages"]
+                        and r["retrieved_pages"][0] in r["gold_pages"]
+                    )
+                )
+                for r in results
+            )
             / len(results),
             4,
         ),
@@ -106,8 +115,8 @@ def finite_or_none(value: Any) -> float | None:
 
 
 def latest_v1_collection() -> str:
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
 
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     uri = str(env.get("MILVUS_URI", "milvus.db"))
@@ -123,13 +132,15 @@ def latest_v1_collection() -> str:
 
 
 def retrieve_and_generate(
-    version: str, questions: list[dict[str, Any]], retrieval_only: bool = False,
+    version: str,
+    questions: list[dict[str, Any]],
+    retrieval_only: bool = False,
 ) -> list[dict[str, Any]]:
-    from src.generation.generator import generate_answer
     from src.eval.doc_registry import resolve_doc_filter
-    from src.retrieval.retriever import DenseRetriever
+    from src.generation.generator import generate_answer
     from src.retrieval.hybrid_retriever import HybridRetriever
     from src.retrieval.reranked_retriever import RerankedRetriever
+    from src.retrieval.retriever import DenseRetriever
 
     collection = latest_v1_collection()
     bm25_path = str(PROJECT_ROOT / "storage" / "bm25")
@@ -207,18 +218,17 @@ ANSWER:
             elif version == "V2":
                 chunks = retriever.search(query, top_k=TOP_K, mode="hybrid", doc_filter=doc_filter)
                 verification, final_status, retry_count, trace = {}, "", 0, []
-                generated = (generate_answer(query, chunks) if not retrieval_only
-                             else {"answer": ""})
+                generated = generate_answer(query, chunks) if not retrieval_only else {"answer": ""}
             elif version == "V3":
-                chunks = retriever.search(query, top_k=TOP_K, mode="reranked", doc_filter=doc_filter)
+                chunks = retriever.search(
+                    query, top_k=TOP_K, mode="reranked", doc_filter=doc_filter
+                )
                 verification, final_status, retry_count, trace = {}, "", 0, []
-                generated = (generate_answer(query, chunks) if not retrieval_only
-                             else {"answer": ""})
+                generated = generate_answer(query, chunks) if not retrieval_only else {"answer": ""}
             else:
                 chunks = retriever.search(query, top_k=TOP_K, doc_filter=doc_filter)
                 verification, final_status, retry_count, trace = {}, "", 0, []
-                generated = (generate_answer(query, chunks) if not retrieval_only
-                             else {"answer": ""})
+                generated = generate_answer(query, chunks) if not retrieval_only else {"answer": ""}
             total_latency = time.perf_counter() - started
             retrieval_latency = total_latency
             generation_latency = total_latency
@@ -238,12 +248,14 @@ ANSWER:
                 "generation_latency_s": round(generation_latency, 4),
             }
             if version == "V4" and not retrieval_only:
-                record.update({
-                    "verification": verification,
-                    "final_status": final_status,
-                    "retry_count": retry_count,
-                    "trace": trace,
-                })
+                record.update(
+                    {
+                        "verification": verification,
+                        "final_status": final_status,
+                        "retry_count": retry_count,
+                        "trace": trace,
+                    }
+                )
             record.update(metric_values(record["gold_pages"], pages))
             results.append(record)
             if question_id % 10 == 0:
@@ -270,6 +282,7 @@ def evaluate_ragas(
     from ragas import evaluate
     from ragas.llms import llm_factory
     from ragas.metrics import context_precision, context_recall, faithfulness
+
     from src.config.settings import settings
     from src.eval.metrics import answer_relevancy
 
@@ -283,6 +296,7 @@ def evaluate_ragas(
         ),
     )
     from ragas.run_config import RunConfig
+
     run_config = RunConfig(timeout=60, max_retries=1, max_wait=10, max_workers=2)
     batch_dir = RUN_DIR / "ragas_batches" / version.lower()
     batch_dir.mkdir(parents=True, exist_ok=True)
@@ -296,7 +310,12 @@ def evaluate_ragas(
         if batch_path.exists():
             batch = json.loads(batch_path.read_text(encoding="utf-8"))
             for row in batch["rows"]:
-                for key in ("faithfulness", "context_precision", "context_recall", "answer_relevancy"):
+                for key in (
+                    "faithfulness",
+                    "context_precision",
+                    "context_recall",
+                    "answer_relevancy",
+                ):
                     row[key] = finite_or_none(row.get(key))
                 row_map[int(row["question_id"])] = row
             print(f"{version} RAGAS: {end}/100 (checkpoint)", flush=True)
@@ -306,8 +325,12 @@ def evaluate_ragas(
         data = {
             "question": [r["question"] for r in batch_results],
             "answer": [r["answer"] for r in batch_results],
-            "contexts": [r["retrieved_contexts"] or ["(no retrieved context)"] for r in batch_results],
-            "ground_truth": [questions[start + i].get("reference_answer", "") for i in range(len(batch_results))],
+            "contexts": [
+                r["retrieved_contexts"] or ["(no retrieved context)"] for r in batch_results
+            ],
+            "ground_truth": [
+                questions[start + i].get("reference_answer", "") for i in range(len(batch_results))
+            ],
         }
         print(f"{version} RAGAS: {start + 1}-{end}/100", flush=True)
         result = evaluate(
@@ -322,15 +345,21 @@ def evaluate_ragas(
         frame_rows = result.to_pandas().to_dict("records")
         relevancy_values = [answer_relevancy(r["question"], r["answer"]) for r in batch_results]
         rows = []
-        for record, row, relevancy_value in zip(batch_results, frame_rows, relevancy_values):
-            rows.append({
-                "question_id": record["question_id"],
-                "faithfulness": finite_or_none(row.get("faithfulness")),
-                "context_precision": finite_or_none(row.get("context_precision")),
-                "context_recall": finite_or_none(row.get("context_recall")),
-                "answer_relevancy": finite_or_none(relevancy_value),
-            })
-        batch_path.write_text(json.dumps({"rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+        for record, row, relevancy_value in zip(
+            batch_results, frame_rows, relevancy_values, strict=False
+        ):
+            rows.append(
+                {
+                    "question_id": record["question_id"],
+                    "faithfulness": finite_or_none(row.get("faithfulness")),
+                    "context_precision": finite_or_none(row.get("context_precision")),
+                    "context_recall": finite_or_none(row.get("context_recall")),
+                    "answer_relevancy": finite_or_none(relevancy_value),
+                }
+            )
+        batch_path.write_text(
+            json.dumps({"rows": rows}, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         for row in rows:
             row_map[int(row["question_id"])] = row
 
@@ -338,6 +367,7 @@ def evaluate_ragas(
         raise RuntimeError(f"{version} RAGAS incomplete: {len(row_map)}/{len(version_results)}")
 
     rows = [row_map[r["question_id"]] for r in version_results]
+
     def mean(key: str) -> float:
         values = [float(r[key]) for r in rows if finite_or_none(r.get(key)) is not None]
         return round(sum(values) / len(values), 4) if values else 0.0
@@ -361,7 +391,7 @@ def evaluate_ragas(
             "answer_relevancy": "custom_llm_judge (embedding API unavailable)",
         },
     }
-    for record, row in zip(version_results, rows):
+    for record, row in zip(version_results, rows, strict=False):
         record["faithfulness"] = row.get("faithfulness")
         record["context_precision"] = row.get("context_precision")
         record["context_recall"] = row.get("context_recall")
@@ -380,9 +410,19 @@ def v5_metrics() -> dict[str, Any]:
         if report.exists():
             data = json.loads(report.read_text(encoding="utf-8"))
             counts = data.get("counts", data)
-            keys = ["added_count", "unchanged_count", "modified_count", "deleted_count",
-                    "reprocessed_pages", "reused_chunks", "embedded_chunks", "removed_chunks"]
-            return {key: int(counts.get(key, counts.get(key.replace("_count", ""), 0))) for key in keys}
+            keys = [
+                "added_count",
+                "unchanged_count",
+                "modified_count",
+                "deleted_count",
+                "reprocessed_pages",
+                "reused_chunks",
+                "embedded_chunks",
+                "removed_chunks",
+            ]
+            return {
+                key: int(counts.get(key, counts.get(key.replace("_count", ""), 0))) for key in keys
+            }
     raise RuntimeError("V5 update_report.json not found")
 
 
@@ -408,14 +448,25 @@ def main() -> None:
     from collections import Counter
 
     parser = argparse.ArgumentParser(description="Final evaluation (multi-doc aware)")
-    parser.add_argument("--dataset", default="golden_100.json",
-                        help="dataset filename in data/eval_dataset")
-    parser.add_argument("--run-dir", default="storage/runs/final_eval",
-                        help="output run directory (use a new dir for a new dataset)")
-    parser.add_argument("--retrieval-only", action="store_true",
-                        help="skip generation + RAGAS (fast retrieval metrics only)")
-    parser.add_argument("--max-questions", type=int, default=None,
-                        help="limit to first N questions (quick smoke test)")
+    parser.add_argument(
+        "--dataset", default="golden_100.json", help="dataset filename in data/eval_dataset"
+    )
+    parser.add_argument(
+        "--run-dir",
+        default="storage/runs/final_eval",
+        help="output run directory (use a new dir for a new dataset)",
+    )
+    parser.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help="skip generation + RAGAS (fast retrieval metrics only)",
+    )
+    parser.add_argument(
+        "--max-questions",
+        type=int,
+        default=None,
+        help="limit to first N questions (quick smoke test)",
+    )
     args = parser.parse_args()
     global DATASET_PATH, RUN_DIR
     DATASET_PATH = PROJECT_ROOT / "data" / "eval_dataset" / args.dataset
@@ -426,7 +477,9 @@ def main() -> None:
         questions = questions[: args.max_questions]
     total = len(questions)
     modality_counts = dict(Counter(q.get("modality_required", "text") for q in questions))
-    source_docs = sorted({q.get("source_document", "") for q in questions if q.get("source_document")})
+    source_docs = sorted(
+        {q.get("source_document", "") for q in questions if q.get("source_document")}
+    )
     if not (RUN_DIR / "final_metrics.json").exists() and not ARCHIVE_DIR.exists():
         archive_old_runs()
     RUN_DIR.mkdir(parents=True, exist_ok=True)
@@ -441,7 +494,9 @@ def main() -> None:
         "ragas_version": "0.4.3",
         "versions": {},
     }
-    (RUN_DIR / "final_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (RUN_DIR / "final_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     for version in ["V0", "V1", "V2", "V3", "V4"]:
         output = RUN_DIR / f"{version.lower()}_results.json"
@@ -461,10 +516,14 @@ def main() -> None:
         retrieval = summarize(results)
         summary = {"version": version, "retrieval_metrics": retrieval, "ragas_metrics": ragas}
         manifest["versions"][version] = summary
-        (RUN_DIR / "final_metrics.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        (RUN_DIR / "final_metrics.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     manifest["v5_incremental_metrics"] = v5_metrics()
-    (RUN_DIR / "final_metrics.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (RUN_DIR / "final_metrics.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     lines = [
         "# Final Evaluation",
         "",
@@ -480,17 +539,22 @@ def main() -> None:
     ]
     for version in ["V0", "V1", "V2", "V3", "V4"]:
         m = manifest["versions"][version]["retrieval_metrics"]
-        lines.append(f"| {version} | {m['hit_at_5']:.4f} | {m['recall_at_5']:.4f} | {m['mrr']:.4f} | {m['top1_hit_rate']:.4f} | {m['avg_retrieval_latency_s']:.4f}s |")
+        lines.append(
+            f"| {version} | {m['hit_at_5']:.4f} | {m['recall_at_5']:.4f} | {m['mrr']:.4f} | {m['top1_hit_rate']:.4f} | {m['avg_retrieval_latency_s']:.4f}s |"
+        )
     if not args.retrieval_only:
         lines += [
-            "", "## RAGAS / Answer Metrics",
+            "",
+            "## RAGAS / Answer Metrics",
             "| Version | Faithfulness | Context Precision | Context Recall | Answer Relevancy | Avg Generation Latency |",
             "|---|---:|---:|---:|---:|---:|",
         ]
         for version in ["V0", "V1", "V2", "V3", "V4"]:
             m = manifest["versions"][version]["ragas_metrics"]
             g = manifest["versions"][version]["retrieval_metrics"]
-            lines.append(f"| {version} | {m['faithfulness']:.4f} | {m['context_precision']:.4f} | {m['context_recall']:.4f} | {m['answer_relevancy']:.4f} | {g['avg_generation_latency_s']:.4f}s |")
+            lines.append(
+                f"| {version} | {m['faithfulness']:.4f} | {m['context_precision']:.4f} | {m['context_recall']:.4f} | {m['answer_relevancy']:.4f} | {g['avg_generation_latency_s']:.4f}s |"
+            )
     lines += ["", "## V5 Incremental Metrics", "| Metric | Value |", "|---|---:|"]
     for key, value in manifest["v5_incremental_metrics"].items():
         lines.append(f"| {key} | {value} |")

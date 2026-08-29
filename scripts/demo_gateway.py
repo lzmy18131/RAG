@@ -25,11 +25,18 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config.settings import settings  # noqa: E402
 from src.infra.gateway import (  # noqa: E402
-    CircuitConfig, LLMGateway, Provider, ProviderConfig, RetryPolicy,
+    CircuitConfig,
+    LLMGateway,
+    Provider,
+    ProviderConfig,
+    RetryPolicy,
 )
 
 DEAD = ProviderConfig(
-    "dead_primary", "http://127.0.0.1:59999/v1", "sk-fake", "deepseek-chat",
+    "dead_primary",
+    "http://127.0.0.1:59999/v1",
+    "sk-fake",
+    "deepseek-chat",
 )
 
 
@@ -39,16 +46,26 @@ def main() -> None:
     args = parser.parse_args()
 
     backup = ProviderConfig(
-        "backup", settings.llm_base_url, settings.llm_api_key, settings.llm_model,
+        "backup",
+        settings.llm_base_url,
+        settings.llm_api_key,
+        settings.llm_model,
     )
     if not backup.is_configured():
-        print("⚠️  backup provider 未配置 (settings 是占位符) — 演示会走 all-providers-down 兜底路径。")
-        gateway = LLMGateway([Provider(DEAD, timeout=3.0)], retry_policy=_policy(),
-                             circuit_config=CircuitConfig(failure_threshold=2, cooldown_seconds=5))
+        print(
+            "⚠️  backup provider 未配置 (settings 是占位符) — 演示会走 all-providers-down 兜底路径。"
+        )
+        gateway = LLMGateway(
+            [Provider(DEAD, timeout=3.0)],
+            retry_policy=_policy(),
+            circuit_config=CircuitConfig(failure_threshold=2, cooldown_seconds=5),
+        )
     else:
-        gateway = LLMGateway([Provider(DEAD, timeout=3.0), Provider(backup, timeout=60.0)],
-                             retry_policy=_policy(),
-                             circuit_config=CircuitConfig(failure_threshold=2, cooldown_seconds=5))
+        gateway = LLMGateway(
+            [Provider(DEAD, timeout=3.0), Provider(backup, timeout=60.0)],
+            retry_policy=_policy(),
+            circuit_config=CircuitConfig(failure_threshold=2, cooldown_seconds=5),
+        )
 
     print(f"网关演示: dead_primary(死端口) → backup({backup.name}: {backup.model})\n")
 
@@ -60,17 +77,23 @@ def main() -> None:
         if raw.get("gateway_fallback"):
             print(f"[{i}/{args.queries}] 兜底应答 ({elapsed:.2f}s) — {text[:30]}")
         else:
-            print(f"[{i}/{args.queries}] provider={provider} attempts={raw.get('attempts')} "
-                  f"({elapsed:.2f}s) — {text[:30]}")
+            print(
+                f"[{i}/{args.queries}] provider={provider} attempts={raw.get('attempts')} "
+                f"({elapsed:.2f}s) — {text[:30]}"
+            )
         if i == args.queries // 2:
-            print(f"  … 等待 {CircuitConfig(failure_threshold=2, cooldown_seconds=5).cooldown_seconds}s "
-                  f"冷却,触发 HALF_OPEN 探针 …")
+            print(
+                f"  … 等待 {CircuitConfig(failure_threshold=2, cooldown_seconds=5).cooldown_seconds}s "
+                f"冷却,触发 HALF_OPEN 探针 …"
+            )
             time.sleep(CircuitConfig(failure_threshold=2, cooldown_seconds=5).cooldown_seconds + 1)
 
     print("\n── 熔断状态 ──")
     for p in gateway.state_dump()["providers"]:
-        print(f"  {p['name']:<14} state={p['state']:<10} failures={p['consecutive_failures']} "
-              f"seconds_until_half_open={p['seconds_until_half_open']}")
+        print(
+            f"  {p['name']:<14} state={p['state']:<10} failures={p['consecutive_failures']} "
+            f"seconds_until_half_open={p['seconds_until_half_open']}"
+        )
 
 
 def _policy() -> RetryPolicy:

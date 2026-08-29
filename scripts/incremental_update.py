@@ -17,16 +17,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
 
 def _latest_kw_collection(client) -> str:
-    kw = sorted([c for c in client.list_collections()
-                 if c.startswith("v1_multimodal_kw_")])
-    ts = sorted([c for c in client.list_collections()
-                 if c.startswith("v1_multimodal_2")])
+    kw = sorted([c for c in client.list_collections() if c.startswith("v1_multimodal_kw_")])
+    ts = sorted([c for c in client.list_collections() if c.startswith("v1_multimodal_2")])
     return (ts + kw)[-1] if (ts or kw) else "v1_multimodal_kw_latest"
 
 
@@ -42,10 +42,11 @@ def main() -> None:
     t0 = time.perf_counter()
 
     from pymilvus import MilvusClient
+
     from src.infra.embedder import Embedder
-    from src.retrieval.bm25 import BM25Retriever
-    from src.ingestion.manifest import ManifestStore
     from src.ingestion.incremental import IncrementalIndexer
+    from src.ingestion.manifest import ManifestStore
+    from src.retrieval.bm25 import BM25Retriever
 
     input_dir = PROJECT_ROOT / args.input
     milvus_path = str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db"))
@@ -111,13 +112,20 @@ def main() -> None:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
     with open(out_dir / "metadata.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "experiment": "v5_incremental", "version": "V5",
-            "collection": collection, "report": report_path,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "experiment": "v5_incremental",
+                "version": "V5",
+                "collection": collection,
+                "report": report_path,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
 
     # ── Print ──
-    print(f"\n{'='*55}")
+    print(f"\n{'=' * 55}")
     for k, v in counts.items():
         print(f"  {k}: {v}")
     print(f"  embed_calls: {indexer.embed_call_count}")

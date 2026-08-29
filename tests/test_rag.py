@@ -63,8 +63,8 @@ def test_parse_pdf() -> None:
 
 def test_chunk_document() -> None:
     """Document should produce chunks with correct metadata."""
-    from src.ingestion.pdf_parser import parse_pdf
     from src.ingestion.chunker import chunk_document
+    from src.ingestion.pdf_parser import parse_pdf
 
     raw_docs = PROJECT_ROOT / "data" / "raw_docs"
     pdfs = list(raw_docs.glob("*.pdf"))
@@ -84,8 +84,8 @@ def test_chunk_document() -> None:
 
 def test_chunk_content_not_empty() -> None:
     """All chunks should have non-trivial content."""
-    from src.ingestion.pdf_parser import parse_pdf
     from src.ingestion.chunker import chunk_document
+    from src.ingestion.pdf_parser import parse_pdf
 
     raw_docs = PROJECT_ROOT / "data" / "raw_docs"
     pdfs = list(raw_docs.glob("*.pdf"))
@@ -113,8 +113,8 @@ def test_generator_refuses_without_context() -> None:
 
 def test_milvus_collection_available() -> None:
     """After ingestion, Milvus collection should exist and be queryable."""
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
 
     # Read real Milvus URI from .env (not the env-var override)
     env_vals = dotenv_values(str(PROJECT_ROOT / ".env"))

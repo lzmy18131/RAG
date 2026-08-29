@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from src.infra.llm_client import LLMClient
 
-
 SYSTEM_PROMPT = """你是一个智能硬件维保助手。请根据提供的说明书内容回答用户问题。
 
 规则：
@@ -60,12 +59,14 @@ def generate_answer(
     # Extract citations from chunks used
     citations: list[dict] = []
     for c in retrieved_chunks:
-        citations.append({
-            "chunk_id": c.get("chunk_id", ""),
-            "source_file": c.get("source_file", ""),
-            "page_number": c.get("page_number", 0),
-            "retrieval_score": c.get("retrieval_score"),
-        })
+        citations.append(
+            {
+                "chunk_id": c.get("chunk_id", ""),
+                "source_file": c.get("source_file", ""),
+                "page_number": c.get("page_number", 0),
+                "retrieval_score": c.get("retrieval_score"),
+            }
+        )
 
     return {
         "answer": response_text,

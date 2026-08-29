@@ -11,13 +11,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
 
 def main() -> None:
     from pymilvus import MilvusClient
+
     from src.retrieval.bm25 import BM25Retriever
 
     milvus_path = str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db"))
@@ -36,9 +39,8 @@ def main() -> None:
     client.load_collection(col)
     chunks = client.query(
         collection_name=col,
-        filter="chunk_id != \"\"",
-        output_fields=["chunk_id", "page_number", "content_type",
-                       "source_file", "content"],
+        filter='chunk_id != ""',
+        output_fields=["chunk_id", "page_number", "content_type", "source_file", "content"],
         limit=200,
     )
     client.close()
@@ -57,7 +59,7 @@ def main() -> None:
 
     # Quick test
     results = bm25.search("机器人会不会从楼梯摔下去", top_k=3)
-    print(f"\nTest query: 机器人会不会从楼梯摔下去")
+    print("\nTest query: 机器人会不会从楼梯摔下去")
     for r in results:
         print(f"  page={r['page_number']} type={r['content_type']} score={r['bm25_score']:.4f}")
 

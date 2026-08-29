@@ -4,6 +4,7 @@ Loads BGE-Reranker locally and exposes a minimal scoring interface for smoke tes
 """
 
 from sentence_transformers import CrossEncoder
+
 from src.config.settings import settings
 
 
@@ -15,6 +16,7 @@ class Reranker:
         device = device or settings.model_device
         if device == "auto":
             import torch
+
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model_name = model_name

@@ -12,7 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
@@ -36,6 +38,7 @@ def _compute_recall(gold, pages, k=5):
 
 def main() -> None:
     from pymilvus import MilvusClient
+
     from src.retrieval.reranked_retriever import RerankedRetriever
 
     client = MilvusClient(str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db")))
@@ -71,14 +74,19 @@ def main() -> None:
         v2_times.append(time.perf_counter() - t0)
         v2_pages = [r["page_number"] for r in v2_ret]
         v2_types = [r.get("content_type", "") for r in v2_ret]
-        v2_results.append({
-            "question": q_text, "modality": modality, "gold_pages": gold,
-            "pages": v2_pages, "types": v2_types,
-            "recall_at_5": round(_compute_recall(gold, v2_pages), 4),
-            "mrr": round(_compute_mrr(gold, v2_pages), 4),
-            "hit": bool(set(gold) & set(v2_pages[:5])),
-            "top1_hit": v2_pages[0] in gold if v2_pages else False,
-        })
+        v2_results.append(
+            {
+                "question": q_text,
+                "modality": modality,
+                "gold_pages": gold,
+                "pages": v2_pages,
+                "types": v2_types,
+                "recall_at_5": round(_compute_recall(gold, v2_pages), 4),
+                "mrr": round(_compute_mrr(gold, v2_pages), 4),
+                "hit": bool(set(gold) & set(v2_pages[:5])),
+                "top1_hit": v2_pages[0] in gold if v2_pages else False,
+            }
+        )
 
         # V3
         t0 = time.perf_counter()
@@ -91,54 +99,64 @@ def main() -> None:
         # Full per-chunk details
         final_chunks = []
         for r in v3_ret:
-            final_chunks.append({
-                "chunk_id": r.get("chunk_id", ""),
-                "page_number": r.get("page_number", 0),
-                "content_type": r.get("content_type", ""),
-                "fusion_score": r.get("fusion_score"),
-                "rrf_score": r.get("rrf_score"),
-                "rerank_score": r.get("rerank_score"),
-                "rerank_rank": r.get("rerank_rank"),
-                "original_hybrid_rank": r.get("original_hybrid_rank"),
-                "dense_rank": r.get("dense_rank"),
-                "bm25_rank": r.get("bm25_rank"),
-                "content_preview": r.get("content", "")[:80],
-            })
+            final_chunks.append(
+                {
+                    "chunk_id": r.get("chunk_id", ""),
+                    "page_number": r.get("page_number", 0),
+                    "content_type": r.get("content_type", ""),
+                    "fusion_score": r.get("fusion_score"),
+                    "rrf_score": r.get("rrf_score"),
+                    "rerank_score": r.get("rerank_score"),
+                    "rerank_rank": r.get("rerank_rank"),
+                    "original_hybrid_rank": r.get("original_hybrid_rank"),
+                    "dense_rank": r.get("dense_rank"),
+                    "bm25_rank": r.get("bm25_rank"),
+                    "content_preview": r.get("content", "")[:80],
+                }
+            )
 
-        v3_results.append({
-            "question": q_text, "modality": modality, "gold_pages": gold,
-            "candidate_count": 20, "final_count": 5,
-            "pages": v3_pages, "types": v3_types,
-            "rerank_scores": [r.get("rerank_score") for r in v3_ret],
-            "rerank_ranks": [r.get("rerank_rank") for r in v3_ret],
-            "original_hybrid_ranks": [r.get("original_hybrid_rank") for r in v3_ret],
-            "ranking_changed": changed,
-            "recall_at_5": round(_compute_recall(gold, v3_pages), 4),
-            "mrr": round(_compute_mrr(gold, v3_pages), 4),
-            "hit": bool(set(gold) & set(v3_pages[:5])),
-            "top1_hit": v3_pages[0] in gold if v3_pages else False,
-            "final_results": final_chunks,
-        })
+        v3_results.append(
+            {
+                "question": q_text,
+                "modality": modality,
+                "gold_pages": gold,
+                "candidate_count": 20,
+                "final_count": 5,
+                "pages": v3_pages,
+                "types": v3_types,
+                "rerank_scores": [r.get("rerank_score") for r in v3_ret],
+                "rerank_ranks": [r.get("rerank_rank") for r in v3_ret],
+                "original_hybrid_ranks": [r.get("original_hybrid_rank") for r in v3_ret],
+                "ranking_changed": changed,
+                "recall_at_5": round(_compute_recall(gold, v3_pages), 4),
+                "mrr": round(_compute_mrr(gold, v3_pages), 4),
+                "hit": bool(set(gold) & set(v3_pages[:5])),
+                "top1_hit": v3_pages[0] in gold if v3_pages else False,
+                "final_results": final_chunks,
+            }
+        )
         if changed:
             rc_entry = {
                 "question": q_text,
                 "v2_top3_pages": v2_pages[:3],
                 "v3_top3_pages": v3_pages[:3],
-                "changes": []
+                "changes": [],
             }
             for r in v3_ret:
                 old = r.get("original_hybrid_rank", 0)
                 new = r.get("rerank_rank", 0)
                 if old != new:
-                    rc_entry["changes"].append({
-                        "chunk_id": r.get("chunk_id", ""),
-                        "page_number": r.get("page_number", 0),
-                        "content_type": r.get("content_type", ""),
-                        "original_hybrid_rank": old,
-                        "rerank_rank": new,
-                        "fusion_score": r.get("fusion_score"),
-                        "rerank_score": r.get("rerank_score"),
-                    })
+                    rc_entry["changes"].append(
+                        {
+                            "chunk_id": r.get("chunk_id", ""),
+                            "page_number": r.get("page_number", 0),
+                            "content_type": r.get("content_type", ""),
+                            "original_hybrid_rank": old,
+                            "rerank_rank": new,
+                            "fusion_score": r.get("fusion_score"),
+                            "rerank_score": r.get("rerank_score"),
+                        }
+                    )
             ranking_changes.append(rc_entry)
 
     retriever.close()
@@ -163,9 +181,9 @@ def main() -> None:
         return {"hit": r["hit"], "pages": r["pages"], "types": r["types"]} if r else None
 
     # Print
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"{'Metric':<20} {'V2 Hybrid':<15} {'V3 Reranked':<15} {'Delta':<10}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     for metric in ["hit_rate", "top1_hit_rate", "recall_at_5", "mrr", "avg_time_s"]:
         v2v, v3v = v2_sum[metric], v3_sum[metric]
         delta = f"{v3v - v2v:+.4f}"
@@ -175,12 +193,12 @@ def main() -> None:
     for rc in ranking_changes:
         print(f"  '{rc['question'][:40]}': v2={rc['v2_top3_pages']} → v3={rc['v3_top3_pages']}")
 
-    print(f"\nQ18 (image):")
+    print("\nQ18 (image):")
     for label, res in [("V2", v2_results), ("V3", v3_results)]:
         r = q_report(res, "楼梯")
         print(f"  {label}: {'HIT' if r['hit'] else 'MISS'} pages={r['pages']} types={r['types']}")
 
-    print(f"\nQ19 (text):")
+    print("\nQ19 (text):")
     for label, res in [("V2", v2_results), ("V3", v3_results)]:
         r = q_report(res, "不动")
         print(f"  {label}: {'HIT' if r['hit'] else 'MISS'} pages={r['pages']} types={r['types']}")
@@ -190,18 +208,25 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     metadata = {
-        "experiment": "v3_rerank", "version": "V3",
+        "experiment": "v3_rerank",
+        "version": "V3",
         "reranker_model": "BAAI/bge-reranker-v2-m3",
-        "candidate_top_k": 20, "final_top_k": 5,
-        "v1_collection": v1_col, "bm25_index": bm25_path,
+        "candidate_top_k": 20,
+        "final_top_k": 5,
+        "v1_collection": v1_col,
+        "bm25_index": bm25_path,
         "ranked_questions": len(ranking_changes),
         "total_time_s": round(total_time, 1),
     }
     with open(out_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
 
-    comparison = {"v2_summary": v2_sum, "v3_summary": v3_sum,
-                  "v2_results": v2_results, "v3_results": v3_results}
+    comparison = {
+        "v2_summary": v2_sum,
+        "v3_summary": v3_sum,
+        "v2_results": v2_results,
+        "v3_results": v3_results,
+    }
     with open(out_dir / "v2_v3_comparison.json", "w", encoding="utf-8") as f:
         json.dump(comparison, f, ensure_ascii=False, indent=2)
 

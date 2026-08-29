@@ -21,7 +21,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ⚠️  pymilvus ORM module reads MILVUS_URI at import time and only
 # accepts http:// URIs. Save the real path from .env before overriding.
 import os as _os
+
 from dotenv import dotenv_values as _dotenv_values
+
 _env_vals = _dotenv_values(str(PROJECT_ROOT / ".env"))
 _REAL_MILVUS_URI = _env_vals.get("MILVUS_URI", "milvus.db")
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
@@ -108,7 +110,6 @@ def main() -> None:
     print(f"  Vectors: {len(vectors)}")
 
     # ── Store in Milvus ──
-    from src.config.settings import settings
 
     collection_name = "v0_naive_rag"
     print(f"Storing in Milvus collection: {collection_name}")
@@ -140,17 +141,19 @@ def main() -> None:
 
     # Insert data
     data = []
-    for chunk, vector in zip(chunks, vectors):
-        data.append({
-            "chunk_id": chunk.chunk_id,
-            "document_id": chunk.document_id,
-            "document_version": chunk.document_version,
-            "page_number": chunk.page_number,
-            "content": chunk.content,
-            "content_type": chunk.content_type,
-            "source_file": chunk.source_file,
-            "vector": vector,
-        })
+    for chunk, vector in zip(chunks, vectors, strict=False):
+        data.append(
+            {
+                "chunk_id": chunk.chunk_id,
+                "document_id": chunk.document_id,
+                "document_version": chunk.document_version,
+                "page_number": chunk.page_number,
+                "content": chunk.content,
+                "content_type": chunk.content_type,
+                "source_file": chunk.source_file,
+                "vector": vector,
+            }
+        )
 
     res = client.insert(collection_name=collection_name, data=data)
     print(f"  Inserted: {res['insert_count']} rows")

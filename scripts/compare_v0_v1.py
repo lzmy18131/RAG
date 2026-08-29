@@ -5,21 +5,23 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
 
 def main() -> None:
-    from src.retrieval.retriever import DenseRetriever
     from pymilvus import MilvusClient
+
+    from src.retrieval.retriever import DenseRetriever
 
     # ── Load 20 fixed questions ──
     with open(PROJECT_ROOT / "data" / "eval_dataset" / "v0_questions.json", encoding="utf-8") as f:
@@ -59,19 +61,25 @@ def main() -> None:
         v0_hit = bool(set(gold_pages) & set(v0_pages[:5]))
         v1_hit = bool(set(gold_pages) & set(v1_pages[:5]))
 
-        results.append({
-            "question_id": i,
-            "question": q_text,
-            "modality": modality,
-            "gold_pages": gold_pages,
-            "v0_pages": v0_pages,
-            "v1_pages": v1_pages,
-            "v1_content_types": v1_types,
-            "v0_hit": v0_hit,
-            "v1_hit": v1_hit,
-        })
+        results.append(
+            {
+                "question_id": i,
+                "question": q_text,
+                "modality": modality,
+                "gold_pages": gold_pages,
+                "v0_pages": v0_pages,
+                "v1_pages": v1_pages,
+                "v1_content_types": v1_types,
+                "v0_hit": v0_hit,
+                "v1_hit": v1_hit,
+            }
+        )
 
-        status = "V0✓/V1✓" if (v0_hit and v1_hit) else ("V0✗/V1✓" if v1_hit else ("V0✓/V1✗" if v0_hit else "V0✗/V1✗"))
+        status = (
+            "V0✓/V1✓"
+            if (v0_hit and v1_hit)
+            else ("V0✗/V1✓" if v1_hit else ("V0✓/V1✗" if v0_hit else "V0✗/V1✗"))
+        )
         print(f"  Q{i:2d} [{modality:5s}] {status}: v0={v0_pages} v1={v1_pages}")
 
     v0_retriever.close()
@@ -108,8 +116,10 @@ def main() -> None:
     print(f"\n{'=' * 50}")
     print(f"V0: {v0_hits}/{len(questions)} hit")
     print(f"V1: {v1_hits}/{len(questions)} hit")
-    print(f"Q18 (image): V0={'HIT' if summary['image_questions']['q18_v0_hit'] else 'MISS'}, "
-          f"V1={'HIT' if summary['image_questions']['q18_v1_hit'] else 'MISS'}")
+    print(
+        f"Q18 (image): V0={'HIT' if summary['image_questions']['q18_v0_hit'] else 'MISS'}, "
+        f"V1={'HIT' if summary['image_questions']['q18_v1_hit'] else 'MISS'}"
+    )
     print(f"Saved: {out_path}")
 
 

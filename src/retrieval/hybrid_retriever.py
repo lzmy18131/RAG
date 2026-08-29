@@ -13,8 +13,8 @@ Fallback behaviour:
 
 from __future__ import annotations
 
-from src.retrieval.retriever import DenseRetriever
 from src.retrieval.bm25 import BM25Retriever
+from src.retrieval.retriever import DenseRetriever
 
 
 class HybridRetrievalError(Exception):
@@ -67,9 +67,7 @@ def _rrf_fusion(
             combined[cid]["bm25_score"] = r.get("bm25_score", 0)
         combined[cid]["rrf_score"] += 1.0 / (k + rank)
 
-    sorted_results = sorted(
-        combined.values(), key=lambda x: x["rrf_score"], reverse=True
-    )
+    sorted_results = sorted(combined.values(), key=lambda x: x["rrf_score"], reverse=True)
     for r in sorted_results:
         val = round(r["rrf_score"], 6)
         r["rrf_score"] = val
@@ -85,7 +83,9 @@ def _mark_degrade(results: list[dict], channel: str, reason: str) -> list[dict]:
         r["rrf_score"] = None
         r["fusion_score"] = None
         if channel == "dense":
-            r["dense_rank"] = r.get("dense_rank") or (results.index(r) + 1 if "dense_rank" in r else None)
+            r["dense_rank"] = r.get("dense_rank") or (
+                results.index(r) + 1 if "dense_rank" in r else None
+            )
     return results
 
 
@@ -120,7 +120,10 @@ class HybridRetriever:
         return self._bm25
 
     def search(
-        self, query: str, top_k: int = 5, mode: str = "hybrid",
+        self,
+        query: str,
+        top_k: int = 5,
+        mode: str = "hybrid",
         doc_filter: str | None = None,
     ) -> list[dict]:
         """Search with specified mode: dense, bm25, hybrid.
@@ -159,9 +162,7 @@ class HybridRetriever:
         # ── mode=dense ──
         if mode == "dense":
             if not dense_ok:
-                raise HybridRetrievalError(
-                    "Dense retrieval unavailable — check Milvus connection"
-                )
+                raise HybridRetrievalError("Dense retrieval unavailable — check Milvus connection")
             for i, r in enumerate(dense_results[:top_k]):
                 r["dense_rank"] = i + 1
                 r["dense_score"] = r.get("retrieval_score", 0)
@@ -175,9 +176,7 @@ class HybridRetriever:
         # ── mode=bm25 ──
         if mode == "bm25":
             if not bm25_ok:
-                raise HybridRetrievalError(
-                    "BM25 unavailable — index not loaded"
-                )
+                raise HybridRetrievalError("BM25 unavailable — index not loaded")
             return bm25_results[:top_k]
 
         # ── mode=hybrid ──

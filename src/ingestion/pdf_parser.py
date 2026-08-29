@@ -1,6 +1,7 @@
 """PDF text parser — extracts page text via pymupdf."""
 
 from pathlib import Path
+
 from src.ingestion.document import Document
 
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 
 class QAState(TypedDict):
@@ -45,10 +45,7 @@ def _check_question_relevance(chunks: list[dict], threshold: float = MIN_RELEVAN
     """
     if not chunks:
         return False
-    best = max(
-        c.get("rerank_score") or c.get("retrieval_score") or 0.0
-        for c in chunks
-    )
+    best = max(c.get("rerank_score") or c.get("retrieval_score") or 0.0 for c in chunks)
     return best >= threshold
 
 
@@ -74,8 +71,9 @@ class VerifiedQA:
 
     def _retrieve(self, state: QAState) -> dict:
         new_trace = list(state.get("trace", [])) + ["retrieve"]
-        chunks = self.retriever.search(state["question"], top_k=5, mode="reranked",
-                                       doc_filter=state.get("doc_filter"))
+        chunks = self.retriever.search(
+            state["question"], top_k=5, mode="reranked", doc_filter=state.get("doc_filter")
+        )
         return {
             "trace": new_trace,
             "retrieved_chunks": chunks,
@@ -111,9 +109,7 @@ class VerifiedQA:
 
     def _generate(self, state: QAState) -> dict:
         new_trace = list(state.get("trace", [])) + ["generate"]
-        result = self.generator_fn(
-            state["question"], state["retrieved_chunks"]
-        )
+        result = self.generator_fn(state["question"], state["retrieved_chunks"])
         return {"trace": new_trace, "answer": result["answer"]}
 
     def _verify(self, state: QAState) -> dict:
@@ -133,7 +129,9 @@ class VerifiedQA:
                 },
             }
         result = self.verifier_fn(
-            state["question"], state["answer"], state["retrieved_chunks"],
+            state["question"],
+            state["answer"],
+            state["retrieved_chunks"],
         )
         return {"trace": new_trace, "verification_result": result}
 

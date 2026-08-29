@@ -13,22 +13,24 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ⚠️  pymilvus ORM requires http:// URI — override env after saving real path.
 import os as _os
+
 from dotenv import dotenv_values as _dotenv_values
+
 _env_vals = _dotenv_values(str(PROJECT_ROOT / ".env"))
 _REAL_MILVUS_URI = _env_vals.get("MILVUS_URI", "milvus.db")
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 
 
 def main() -> None:
-    from src.retrieval.retriever import DenseRetriever
     from src.generation.generator import generate_answer
+    from src.retrieval.retriever import DenseRetriever
 
     questions_path = PROJECT_ROOT / "data" / "eval_dataset" / "v0_questions.json"
     with open(questions_path, encoding="utf-8") as f:
         questions = json.load(f)
 
     print(f"Running V0 baseline evaluation: {len(questions)} questions")
-    print(f"Collection: v0_naive_rag")
+    print("Collection: v0_naive_rag")
 
     retriever = DenseRetriever(collection_name="v0_naive_rag")
     results = []
@@ -63,8 +65,10 @@ def main() -> None:
             },
         }
         results.append(result)
-        print(f"  [{i:2d}/{len(questions)}] {q_text[:40]}... "
-              f"({total_time:.1f}s, {len(retrieved)} chunks)")
+        print(
+            f"  [{i:2d}/{len(questions)}] {q_text[:40]}... "
+            f"({total_time:.1f}s, {len(retrieved)} chunks)"
+        )
 
     total_elapsed = time.perf_counter() - total_start
     retriever.close()
@@ -92,7 +96,7 @@ def main() -> None:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
     print(f"\n{'=' * 60}")
-    print(f"V0 Baseline saved:")
+    print("V0 Baseline saved:")
     print(f"  Results: {output_path}")
     print(f"  Questions: {len(questions)}")
     print(f"  Total time: {total_elapsed:.1f}s")

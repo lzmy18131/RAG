@@ -27,6 +27,7 @@ def test_bm25_meta_exists() -> None:
 
 def test_bm25_can_load_and_search() -> None:
     from src.retrieval.bm25 import BM25Retriever
+
     bm = BM25Retriever()
     bm.load(PROJECT_ROOT / "storage" / "bm25")
     results = bm.search("设备无法开机怎么办", top_k=3)
@@ -38,6 +39,7 @@ def test_bm25_can_load_and_search() -> None:
 
 def test_bm25_num_docs() -> None:
     from src.retrieval.bm25 import BM25Retriever
+
     bm = BM25Retriever()
     bm.load(PROJECT_ROOT / "storage" / "bm25")
     assert bm.num_docs > 0, f"BM25 index should have documents, got {bm.num_docs}"
@@ -49,6 +51,7 @@ def test_bm25_num_docs() -> None:
 
 def test_hybrid_dense_mode() -> None:
     from src.retrieval.hybrid_retriever import HybridRetriever
+
     hr = HybridRetriever(
         collection_name=_get_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -62,6 +65,7 @@ def test_hybrid_dense_mode() -> None:
 
 def test_hybrid_bm25_mode() -> None:
     from src.retrieval.hybrid_retriever import HybridRetriever
+
     hr = HybridRetriever(
         collection_name=_get_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -74,6 +78,7 @@ def test_hybrid_bm25_mode() -> None:
 
 def test_hybrid_mode_returns_fusion_scores() -> None:
     from src.retrieval.hybrid_retriever import HybridRetriever
+
     hr = HybridRetriever(
         collection_name=_get_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -106,6 +111,7 @@ def test_v2_hybrid_improves_over_bm25() -> None:
 def test_hybrid_fusion_score_equals_rrf_score() -> None:
     """fusion_score must equal rrf_score in hybrid results."""
     from src.retrieval.hybrid_retriever import HybridRetriever
+
     hr = HybridRetriever(
         collection_name=_get_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -115,13 +121,15 @@ def test_hybrid_fusion_score_equals_rrf_score() -> None:
     for r in results:
         if r.get("retrieval_channel") == "hybrid":
             assert "fusion_score" in r, "fusion_score missing"
-            assert r["fusion_score"] == r["rrf_score"], \
+            assert r["fusion_score"] == r["rrf_score"], (
                 f"fusion_score={r['fusion_score']} != rrf_score={r['rrf_score']}"
+            )
 
 
 def test_dense_unavailable_raises_error() -> None:
     """Mode=dense with no Milvus should raise HybridRetrievalError."""
-    from src.retrieval.hybrid_retriever import HybridRetriever, HybridRetrievalError
+    from src.retrieval.hybrid_retriever import HybridRetrievalError, HybridRetriever
+
     hr = HybridRetriever(
         collection_name="nonexistent_collection",
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -134,6 +142,7 @@ def test_dense_unavailable_raises_error() -> None:
 def test_bm25_unavailable_hybrid_degrades_to_dense() -> None:
     """Hybrid with no BM25 index should degrade to dense with degrade_reason."""
     from src.retrieval.hybrid_retriever import HybridRetriever
+
     hr = HybridRetriever(
         collection_name=_get_v1_col(),
         bm25_index_path="nonexistent/path",
@@ -148,7 +157,8 @@ def test_bm25_unavailable_hybrid_degrades_to_dense() -> None:
 
 def test_both_unavailable_raises_error() -> None:
     """Hybrid with neither Dense nor BM25 should raise HybridRetrievalError."""
-    from src.retrieval.hybrid_retriever import HybridRetriever, HybridRetrievalError
+    from src.retrieval.hybrid_retriever import HybridRetrievalError, HybridRetriever
+
     hr = HybridRetriever(
         collection_name="nonexistent_collection",
         bm25_index_path="nonexistent/path",
@@ -166,8 +176,7 @@ def test_v2_q19_improvement() -> None:
     q19_dense = data["summary"]["dense"]["q19"]
     q19_hybrid = data["summary"]["hybrid"]["q19"]
     # Hybrid should be at least as good as dense for Q19
-    assert q19_hybrid["hit"] or not q19_dense["hit"], \
-        "If dense hits Q19, hybrid should too"
+    assert q19_hybrid["hit"] or not q19_dense["hit"], "If dense hits Q19, hybrid should too"
 
 
 # ── Helpers ──
@@ -175,9 +184,11 @@ def test_v2_q19_improvement() -> None:
 
 def _get_v1_col() -> str:
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     path = str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db"))
     client = MilvusClient(path)

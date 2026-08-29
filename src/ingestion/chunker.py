@@ -1,6 +1,6 @@
 """Fixed-rule text chunking."""
 
-from src.ingestion.document import Document, Chunk
+from src.ingestion.document import Chunk, Document
 
 
 def chunk_document(

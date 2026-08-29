@@ -20,7 +20,7 @@ from pathlib import Path
 
 def _cos(a: list[float], b: list[float]) -> float:
     """Cosine between normalized vectors == dot product."""
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 def _normalize_query_plus_salt(query: str, salt: str = "") -> str:
@@ -38,7 +38,7 @@ class SemanticCache:
         threshold: float = 0.9,
         ttl_days: int | None = None,
     ):
-        self.embedder = embedder          # needs encode(text) -> list[float] (normalized)
+        self.embedder = embedder  # needs encode(text) -> list[float] (normalized)
         self.threshold = threshold
         self.ttl_days = ttl_days
         self._hits = 0
@@ -50,8 +50,8 @@ class SemanticCache:
             "CREATE TABLE IF NOT EXISTS cache ("
             " query_hash TEXT PRIMARY KEY,"
             " query_text TEXT,"
-            " query_vector TEXT,"     # JSON list[float]
-            " response TEXT,"         # JSON dict
+            " query_vector TEXT,"  # JSON list[float]
+            " response TEXT,"  # JSON dict
             " created_at REAL,"
             " hit_count INTEGER DEFAULT 0)"
         )
@@ -71,9 +71,7 @@ class SemanticCache:
 
     @classmethod
     def _hash(cls, query: str, salt: str = "") -> str:
-        return hashlib.sha256(
-            _normalize_query_plus_salt(query, salt).encode("utf-8")
-        ).hexdigest()
+        return hashlib.sha256(_normalize_query_plus_salt(query, salt).encode("utf-8")).hexdigest()
 
     def _expired(self, created_at: float) -> bool:
         if not self.ttl_days:

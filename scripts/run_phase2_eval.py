@@ -19,8 +19,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ⚠️ pymilvus + ragas workarounds
 import os as _os
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
-import src.eval.ragas_patch  # noqa: E402 — must be before ragas imports
 
 
 def _compute_recall_at_k(gold_pages, retrieved_pages, k=5) -> float:
@@ -44,8 +44,8 @@ def main() -> None:
     print(f"Golden Dataset: {len(questions)} total, {len(text_qs)} text-only")
 
     # ── 2. Run retrieval + generation ──
-    from src.retrieval.retriever import DenseRetriever
     from src.generation.generator import generate_answer
+    from src.retrieval.retriever import DenseRetriever
 
     retriever = DenseRetriever(collection_name="v0_naive_rag")
     results = []
@@ -96,21 +96,22 @@ def main() -> None:
             n_new += 1
 
         retrieved_pages = [c["page_number"] for c in retrieved]
-        results.append({
-            "question_id": i,
-            "question": q_text,
-            "gold_pages": gold_pages,
-            "answer": answer,
-            "retrieved_pages": retrieved_pages,
-            "result_source": source,
-            "recall_at_5": round(_compute_recall_at_k(gold_pages, retrieved_pages, 5), 4),
-            "mrr": round(_compute_mrr(gold_pages, retrieved_pages), 4),
-            "hit_at_5": 1 if set(gold_pages) & set(retrieved_pages[:5]) else 0,
-        })
+        results.append(
+            {
+                "question_id": i,
+                "question": q_text,
+                "gold_pages": gold_pages,
+                "answer": answer,
+                "retrieved_pages": retrieved_pages,
+                "result_source": source,
+                "recall_at_5": round(_compute_recall_at_k(gold_pages, retrieved_pages, 5), 4),
+                "mrr": round(_compute_mrr(gold_pages, retrieved_pages), 4),
+                "hit_at_5": 1 if set(gold_pages) & set(retrieved_pages[:5]) else 0,
+            }
+        )
 
         if i % 20 == 0:
-            print(f"  [{i:3d}/{len(text_qs)}] "
-                  f"p1={n_phase1} p2c={n_p2cached} new={n_new}")
+            print(f"  [{i:3d}/{len(text_qs)}] p1={n_phase1} p2c={n_p2cached} new={n_new}")
 
     retriever.close()
     total_time = time.perf_counter() - total_start
@@ -133,14 +134,18 @@ def main() -> None:
     }
 
     # ── 4. RAGAS evaluation ──
+    from datasets import Dataset as HFDataset
+    from openai import OpenAI
     from ragas import evaluate as ragas_evaluate
+    from ragas.llms import llm_factory
+
     # ragas 0.4.3: use deprecated import path (collections require llm param, buggy)
     from ragas.metrics import (  # noqa
-        faithfulness, context_precision, context_recall,
+        context_precision,
+        context_recall,
+        faithfulness,
     )
-    from openai import OpenAI
-    from ragas.llms import llm_factory
-    from datasets import Dataset as HFDataset
+
     from src.config.settings import settings
 
     # Configure ragas LLM
@@ -152,6 +157,7 @@ def main() -> None:
 
     # Sample for ragas (30 stratified, to manage API cost)
     import random
+
     random.seed(42)
     by_diff = {}
     for r in results:
@@ -170,7 +176,6 @@ def main() -> None:
         "ground_truth": [],
     }
     # Build lookup from full results for contexts
-    results_by_q = {r["question"]: r for r in results}
 
     for r in sample:
         q_info = questions[r["question_id"] - 1]
@@ -181,7 +186,11 @@ def main() -> None:
             retrieved_for_contexts = phase1_cache[q_text].get("retrieved_chunks", [])
         elif q_text in p2_gen_cache:
             retrieved_for_contexts = p2_gen_cache[q_text].get("retrieved_chunks", [])
-        contexts = [c["content"] for c in retrieved_for_contexts] if retrieved_for_contexts else ["（无检索结果）"]
+        contexts = (
+            [c["content"] for c in retrieved_for_contexts]
+            if retrieved_for_contexts
+            else ["（无检索结果）"]
+        )
 
         ragas_data["question"].append(r["question"])
         ragas_data["answer"].append(r["answer"])
@@ -256,7 +265,7 @@ def main() -> None:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print(f"\n{'=' * 60}")
-    print(f"V0 Baseline — Phase 2 RAGAS Metrics")
+    print("V0 Baseline — Phase 2 RAGAS Metrics")
     print(f"{'=' * 60}")
     print(f"  Questions:     {len(text_qs)} text-only")
     print(f"  Recall@5:      {retrieval_metrics['recall_at_5']:.4f}")

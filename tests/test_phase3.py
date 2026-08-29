@@ -6,17 +6,17 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _get_v1_collection() -> str:
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     path = str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db"))
     client = MilvusClient(path)
@@ -72,9 +72,11 @@ def test_v0_v1_comparison_exists() -> None:
 def test_v0_collection_not_overwritten() -> None:
     """V0 collection must still exist and be independent."""
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     path = str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db"))
     client = MilvusClient(path)
@@ -84,7 +86,7 @@ def test_v0_collection_not_overwritten() -> None:
     # query all content types
     results = client.query(
         collection_name="v0_naive_rag",
-        filter="content_type != \"text\"",
+        filter='content_type != "text"',
         limit=1,
         output_fields=["content_type"],
     )
@@ -95,9 +97,11 @@ def test_v0_collection_not_overwritten() -> None:
 def test_table_chunk_retrievable() -> None:
     """At least one table chunk should be searchable in V1."""
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     path = str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db"))
     client = MilvusClient(path)
@@ -107,6 +111,7 @@ def test_table_chunk_retrievable() -> None:
     v1_col = v1_all[-1]
 
     from src.retrieval.retriever import DenseRetriever
+
     retriever = DenseRetriever(collection_name=v1_col)
     results = retriever.search("产品有害物质含量表", top_k=5)
     retriever.close()
@@ -119,9 +124,11 @@ def test_table_chunk_retrievable() -> None:
 def test_q18_hits_image_chunk_in_v1() -> None:
     """Q18 must hit at least one image chunk in V1 top-5."""
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     path = str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db"))
     client = MilvusClient(path)
@@ -131,6 +138,7 @@ def test_q18_hits_image_chunk_in_v1() -> None:
     v1_col = v1_all[-1]
 
     from src.retrieval.retriever import DenseRetriever
+
     retriever = DenseRetriever(collection_name=v1_col)
     results = retriever.search("机器人会不会从楼梯摔下去？", top_k=5)
     retriever.close()

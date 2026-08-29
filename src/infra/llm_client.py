@@ -1,6 +1,7 @@
 """OpenAI-compatible LLM adapter for Phase 0 smoke testing."""
 
 from openai import OpenAI
+
 from src.config.settings import settings
 
 
@@ -23,6 +24,7 @@ class LLMClient:
     def _single_gw(self):
         """Private gateway for explicit-arg instances (isolated circuit state)."""
         from src.infra.gateway import LLMGateway, Provider, ProviderConfig
+
         if self._single_gateway is None:
             cfg = ProviderConfig("custom", self.base_url, self.api_key, self.model)
             self._single_gateway = LLMGateway(providers=[Provider(cfg)])
@@ -54,4 +56,5 @@ class LLMClient:
         if any(x is not None for x in self._override):
             return self._single_gw().chat(messages, temperature=temperature)
         from src.infra.gateway import get_gateway
+
         return get_gateway().chat(messages, temperature=temperature)

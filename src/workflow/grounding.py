@@ -18,7 +18,7 @@ COMPUTED (embedding similarity), not claimed by the LLM.
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 # ── Sentence splitting ──
 
@@ -26,8 +26,17 @@ _SENT_ENDINGS = set("。！？!?；;")
 _BRACKET_OPEN = set("（(「『[【{“\"'`")
 _BRACKET_CLOSE = set("）)」』]】}\"'`")
 _BRACKET_MAP = {
-    "（": "）", "(": ")", "「": "」", "『": "』", "[": "]", "【": "】",
-    "{": "}", "“": "”", '"': '"', "'": "'", "`": "`",
+    "（": "）",
+    "(": ")",
+    "「": "」",
+    "『": "』",
+    "[": "]",
+    "【": "】",
+    "{": "}",
+    "“": "”",
+    '"': '"',
+    "'": "'",
+    "`": "`",
 }
 
 _MARKER_RE = re.compile(r"\[来源[:：]\s*([^\[\]]*?)\]")
@@ -73,9 +82,9 @@ def split_sentences(text: str) -> list[str]:
                     buf = []
                 end = text.find("```", i + 3)
                 if end == -1:
-                    sentences.append(text[i + 3:].strip())
+                    sentences.append(text[i + 3 :].strip())
                     break
-                sentences.append(text[i + 3:end].strip())
+                sentences.append(text[i + 3 : end].strip())
                 i = end + 3
                 continue
 
@@ -98,10 +107,7 @@ def split_sentences(text: str) -> list[str]:
         sentences.append("".join(buf).strip())
     # Drop empty fragments and pure-punctuation fragments produced by
     # consecutive terminators (e.g. the second "！" in "啊！！").
-    return [
-        s for s in sentences
-        if s and not all(ch in _SENT_ENDINGS for ch in s)
-    ]
+    return [s for s in sentences if s and not all(ch in _SENT_ENDINGS for ch in s)]
 
 
 # ── Citation marker helpers ──
@@ -116,17 +122,20 @@ def parse_citation_markers(sentence: str) -> list[dict]:
     """Extract ``[来源: <source>, 第<page>页]`` markers as dicts."""
     out: list[dict] = []
     for m in _CIT_RE.finditer(sentence):
-        out.append({
-            "marker": m.group(0),
-            "claimed_source": m.group(1).strip(),
-            "claimed_page": int(m.group(2)),
-        })
+        out.append(
+            {
+                "marker": m.group(0),
+                "claimed_source": m.group(1).strip(),
+                "claimed_page": int(m.group(2)),
+            }
+        )
     return out
 
 
 def _normalize_source(source: str) -> str:
     """Lenient filename matching: basename + lowercase."""
     import os
+
     return os.path.basename(source).strip().lower()
 
 
@@ -153,7 +162,7 @@ def _threshold_loop(
     initial_threshold: float,
     floor: float,
     decay: float,
-) -> tuple[list[bool], list[Optional[float]]]:
+) -> tuple[list[bool], list[float | None]]:
     """RAGFlow-style descending threshold ladder.
 
     A sentence is supported if its best cosine reaches the current rung.
@@ -163,7 +172,7 @@ def _threshold_loop(
     """
     n = len(maxsims)
     supported = [False] * n
-    eff: list[Optional[float]] = [None] * n
+    eff: list[float | None] = [None] * n
     remaining = set(range(n))
     threshold = initial_threshold
 
@@ -275,9 +284,7 @@ class GroundingVerifier:
         if not answer:
             return self._refuse("empty answer")
         if any(p in answer for p in self.refusal_phrases):
-            return self._refuse(
-                "refusal phrase detected", ["generator self-refused"]
-            )
+            return self._refuse("refusal phrase detected", ["generator self-refused"])
 
         valid_chunks = [c for c in chunks if str(c.get("content", "")).strip()]
         if not valid_chunks:
@@ -338,7 +345,8 @@ class GroundingVerifier:
                 "sentence_evidence": sentence_evidence,
                 "grounding_meta": self._meta(0, 0, 0, 0),
                 "citation_audit": self._audit(sentence_evidence, valid_chunks)
-                if self.audit_citations else None,
+                if self.audit_citations
+                else None,
             }
 
         # ── Support decision ──
@@ -355,7 +363,7 @@ class GroundingVerifier:
             supported_flags, eff = _threshold_loop(
                 maxsims, self.initial_threshold, self.threshold_floor, self.decay
             )
-            for entry, flag, eff_t in zip(claim_entries, supported_flags, eff):
+            for entry, flag, eff_t in zip(claim_entries, supported_flags, eff, strict=False):
                 entry["supported"] = flag
                 entry["effective_threshold"] = eff_t
                 entry["status"] = "supported" if flag else "unsupported"
@@ -376,14 +384,12 @@ class GroundingVerifier:
 
         # ── Aggregate ──
         supported = support_ratio >= self.min_support_ratio
-        unsupported_claims = [
-            e["clean"][:60] for e in claim_entries if not e["supported"]
-        ]
+        unsupported_claims = [e["clean"][:60] for e in claim_entries if not e["supported"]]
         reason = (
             f"grounding: {n_supported}/{n_claims} sentences supported "
             f"(ratio {support_ratio:.2f} >= {self.min_support_ratio})"
-            if supported else
-            f"grounding: {n_supported}/{n_claims} sentences supported "
+            if supported
+            else f"grounding: {n_supported}/{n_claims} sentences supported "
             f"(ratio {support_ratio:.2f} < {self.min_support_ratio})"
         )
 
@@ -395,15 +401,17 @@ class GroundingVerifier:
             "reason": reason,
             "sentence_evidence": sentence_evidence,
             "grounding_meta": self._meta(
-                n_claims, n_supported, support_ratio,
+                n_claims,
+                n_supported,
+                support_ratio,
                 sum(1 for e in sentence_evidence if e["status"] == "skipped_short"),
             ),
             "citation_audit": self._audit(sentence_evidence, valid_chunks)
-            if self.audit_citations else None,
+            if self.audit_citations
+            else None,
         }
 
-    def _meta(self, n_claims: int, n_supported: int, ratio: float,
-              n_skipped: int) -> dict:
+    def _meta(self, n_claims: int, n_supported: int, ratio: float, n_skipped: int) -> dict:
         return {
             "scorer": self._mode,
             "scorer_floor": self.scorer_floor,
@@ -419,8 +427,7 @@ class GroundingVerifier:
 
     # ── Citation audit ──
 
-    def _audit(self, sentence_evidence: list[dict],
-               chunks: list[dict]) -> list[dict]:
+    def _audit(self, sentence_evidence: list[dict], chunks: list[dict]) -> list[dict]:
         """Check every LLM-claimed [来源: X, 第Y页] against computed grounding."""
         audit: list[dict] = []
         for entry in sentence_evidence:
@@ -428,9 +435,9 @@ class GroundingVerifier:
                 # Resolve claimed source+page to a retrieved chunk
                 matched = None
                 for c in chunks:
-                    if (_normalize_source(marker["claimed_source"])
-                            == _normalize_source(c.get("source_file", ""))
-                            and marker["claimed_page"] == int(c.get("page_number", -1))):
+                    if _normalize_source(marker["claimed_source"]) == _normalize_source(
+                        c.get("source_file", "")
+                    ) and marker["claimed_page"] == int(c.get("page_number", -1)):
                         matched = c
                         break
                 if matched is None:
@@ -439,13 +446,15 @@ class GroundingVerifier:
                     status = "confirmed"
                 else:
                     status = "unconfirmed"  # chunk exists but didn't ground this sentence
-                audit.append({
-                    "marker": marker["marker"],
-                    "claimed_source": marker["claimed_source"],
-                    "claimed_page": marker["claimed_page"],
-                    "matched_chunk_id": matched.get("chunk_id") if matched else None,
-                    "matched": matched is not None,
-                    "grounded": status == "confirmed",
-                    "status": status,
-                })
+                audit.append(
+                    {
+                        "marker": marker["marker"],
+                        "claimed_source": marker["claimed_source"],
+                        "claimed_page": marker["claimed_page"],
+                        "matched_chunk_id": matched.get("chunk_id") if matched else None,
+                        "matched": matched is not None,
+                        "grounded": status == "confirmed",
+                        "status": status,
+                    }
+                )
         return audit

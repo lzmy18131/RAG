@@ -24,7 +24,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
@@ -47,6 +49,7 @@ PARAPHRASES = [
 
 def _latest_col() -> str:
     from pymilvus import MilvusClient
+
     c = MilvusClient(str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db")))
     kw = sorted([x for x in c.list_collections() if x.startswith("v1_multimodal_kw_")])
     ts = sorted([x for x in c.list_collections() if x.startswith("v1_multimodal_2")])
@@ -61,9 +64,14 @@ def _warm_question(vqa, cache, question: str, doc_filter: str) -> float:
         "question": question,
         "answer": state.get("answer", ""),
         "final_status": state.get("final_status", "refused"),
-        "sources": [{"chunk_id": c.get("chunk_id"), "page_number": c.get("page_number"),
-                     "source_file": c.get("source_file")}
-                    for c in state.get("retrieved_chunks", [])],
+        "sources": [
+            {
+                "chunk_id": c.get("chunk_id"),
+                "page_number": c.get("page_number"),
+                "source_file": c.get("source_file"),
+            }
+            for c in state.get("retrieved_chunks", [])
+        ],
         "verification": {"supported": state.get("verification_result", {}).get("supported", False)},
     }
     cache.put(question, resp)
@@ -72,19 +80,20 @@ def _warm_question(vqa, cache, question: str, doc_filter: str) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--warm", type=int, default=12,
-                        help="number of golden questions to warm the cache")
+    parser.add_argument(
+        "--warm", type=int, default=12, help="number of golden questions to warm the cache"
+    )
     parser.add_argument("--paraphrases", type=int, default=len(PARAPHRASES))
     args = parser.parse_args()
 
+    from src.eval.doc_registry import resolve_doc_filter
+    from src.generation.generator import generate_answer
     from src.infra.embedder import Embedder
     from src.infra.reranker import Reranker
     from src.infra.semantic_cache import SemanticCache
     from src.retrieval.reranked_retriever import RerankedRetriever
-    from src.generation.generator import generate_answer
+    from src.workflow.grounding import CrossEncoderScorer, GroundingVerifier
     from src.workflow.verified_qa import VerifiedQA
-    from src.workflow.grounding import GroundingVerifier, CrossEncoderScorer
-    from src.eval.doc_registry import resolve_doc_filter
 
     robo = resolve_doc_filter("Roborock G10S")
 
@@ -92,11 +101,15 @@ def main() -> None:
         (PROJECT_ROOT / "data" / "eval_dataset" / "v0_questions.json").read_text(encoding="utf-8")
     )[: args.warm]
 
-    embedder = Embedder(); embedder.load()
-    rr = Reranker(); rr.load()
-    retriever = RerankedRetriever(collection_name=_latest_col(),
-                                  bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
-                                  reranker=rr)
+    embedder = Embedder()
+    embedder.load()
+    rr = Reranker()
+    rr.load()
+    retriever = RerankedRetriever(
+        collection_name=_latest_col(),
+        bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
+        reranker=rr,
+    )
     verifier = GroundingVerifier(scorer=CrossEncoderScorer(rr), scorer_floor=0.1)
     vqa = VerifiedQA(retriever, generate_answer, verifier, max_retries=1)
     # Use a SEPARATE cache db so the eval never pollutes the production cache
@@ -160,13 +173,15 @@ def main() -> None:
     }
     out = PROJECT_ROOT / "storage" / "runs" / "v9_cache"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "cache_eval.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out / "cache_eval.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
-    print(f"\n{'='*52}")
+    print(f"\n{'=' * 52}")
     print(f"warmed {report['warmed']} | lookups {total_lookups}")
     print(f"exact_hits={exact_hits} semantic_hits={semantic_hits} miss={miss}")
     print(f"overall_hit_rate={report['overall_hit_rate']}")
-    print(f"avg_uncached={avg_warm:.1f}s  avg_cached={avg_cached*1000:.0f}ms")
+    print(f"avg_uncached={avg_warm:.1f}s  avg_cached={avg_cached * 1000:.0f}ms")
     print(f"LLM calls saved: {llm_saved} (exact re-runs)")
     print(f"cache entries: {cache.stats()['entries']}")
     print(f"Saved: {out / 'cache_eval.json'}")

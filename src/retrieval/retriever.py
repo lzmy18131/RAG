@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os as _os
+
 _os.environ.setdefault("MILVUS_URI", "http://localhost:19530")
 
 from pathlib import Path as _Path
+
 from dotenv import dotenv_values as _dotenv_values
 
 # Read the real Milvus path from .env before the env-var override
@@ -14,6 +16,7 @@ _ENV_VALS = _dotenv_values(str(_PROJECT_ROOT / ".env"))
 _DEFAULT_MILVUS_URI = _ENV_VALS.get("MILVUS_URI", "milvus.db")
 
 from pymilvus import MilvusClient  # noqa: E402
+
 from src.infra.embedder import Embedder  # noqa: E402
 
 
@@ -89,8 +92,12 @@ class DenseRetriever:
             data=[query_vector],
             limit=top_k,
             output_fields=[
-                "chunk_id", "content", "source_file", "page_number",
-                "content_type", "document_id",
+                "chunk_id",
+                "content",
+                "source_file",
+                "page_number",
+                "content_type",
+                "document_id",
             ],
         )
         if filter_expr:
@@ -100,16 +107,18 @@ class DenseRetriever:
         hits = []
         for hit in results[0]:
             entity = hit.get("entity", {})
-            hits.append({
-                "chunk_id": entity.get("chunk_id", ""),
-                "content": entity.get("content", ""),
-                "source_file": entity.get("source_file", ""),
-                "page_number": entity.get("page_number", 0),
-                "content_type": entity.get("content_type", "text"),
-                "retrieval_channel": "dense",
-                "retrieval_score": round(hit.get("distance", 0.0), 4),
-                "rerank_score": None,
-            })
+            hits.append(
+                {
+                    "chunk_id": entity.get("chunk_id", ""),
+                    "content": entity.get("content", ""),
+                    "source_file": entity.get("source_file", ""),
+                    "page_number": entity.get("page_number", 0),
+                    "content_type": entity.get("content_type", "text"),
+                    "retrieval_channel": "dense",
+                    "retrieval_score": round(hit.get("distance", 0.0), 4),
+                    "rerank_score": None,
+                }
+            )
 
         return hits
 

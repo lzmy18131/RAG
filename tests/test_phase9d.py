@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -15,17 +14,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 @pytest.fixture
 def client():
-    from unittest.mock import patch, MagicMock
-    with patch("src.api.deps.get_milvus_client"), \
-         patch("src.api.deps.get_retriever"), \
-         patch("src.api.deps.get_vqa"), \
-         patch("src.api.deps.get_bm25"), \
-         patch("src.api.deps.get_latest_v1_collection"), \
-         patch("src.api.deps.get_settings"), \
-         patch("src.api.deps.get_embedder"), \
-         patch("src.api.deps.get_incremental_indexer"):
+    from unittest.mock import patch
+
+    with (
+        patch("src.api.deps.get_milvus_client"),
+        patch("src.api.deps.get_retriever"),
+        patch("src.api.deps.get_vqa"),
+        patch("src.api.deps.get_bm25"),
+        patch("src.api.deps.get_latest_v1_collection"),
+        patch("src.api.deps.get_settings"),
+        patch("src.api.deps.get_embedder"),
+        patch("src.api.deps.get_incremental_indexer"),
+    ):
         from main import app
-        return TestClient(app)
+
+        yield TestClient(app)
 
 
 class TestExperimentsList:
@@ -43,8 +46,14 @@ class TestExperimentsList:
     def test_has_v0_thru_v5(self, client):
         r = client.get("/experiments")
         ids = {e["id"] for e in r.json()["experiments"]}
-        for vid in ["v0_baseline", "v1_multimodal", "v2_comparison",
-                     "v3_rerank", "v4_verified", "v5_incremental"]:
+        for vid in [
+            "v0_baseline",
+            "v1_multimodal",
+            "v2_comparison",
+            "v3_rerank",
+            "v4_verified",
+            "v5_incremental",
+        ]:
             assert vid in ids, f"Missing: {vid}"
 
 
@@ -87,10 +96,13 @@ class TestEvaluateUnaffected:
 class TestNoRagasTrigger:
     def test_experiments_list_readonly(self, client):
         """GET /experiments must be read-only — no file modifications."""
-        import os, time
+        import os
+
         p = PROJECT_ROOT / "storage" / "runs" / "v0_baseline" / "retrieval_metrics.json"
         mtime_before = os.path.getmtime(p) if p.exists() else 0
         client.get("/experiments")
         client.get("/experiments/v0_baseline")
         if p.exists():
-            assert os.path.getmtime(p) == mtime_before, "Experiments endpoints must not modify files"
+            assert os.path.getmtime(p) == mtime_before, (
+                "Experiments endpoints must not modify files"
+            )

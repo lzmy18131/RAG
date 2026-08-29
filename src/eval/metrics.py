@@ -27,7 +27,7 @@ def faithfulness(question: str, answer: str, contexts: list[str]) -> float:
     if not answer or not contexts:
         return 0.0
 
-    context_text = "\n\n".join(f"[{i+1}] {c}" for i, c in enumerate(contexts))
+    context_text = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(contexts))
 
     prompt = f"""Evaluate whether the ANSWER is faithful to the CONTEXTS.
 
@@ -48,6 +48,7 @@ Output ONLY a JSON object:
     try:
         response = _ask_llm(prompt)
         import json
+
         # Extract JSON from response
         start = response.find("{")
         end = response.rfind("}") + 1
@@ -97,7 +98,7 @@ def context_precision(question: str, contexts: list[str]) -> float:
     if not contexts:
         return 0.0
 
-    context_text = "\n\n".join(f"[{i+1}] {c[:300]}" for i, c in enumerate(contexts))
+    context_text = "\n\n".join(f"[{i + 1}] {c[:300]}" for i, c in enumerate(contexts))
 
     prompt = f"""Evaluate whether each CONTEXT is relevant to the QUESTION.
 
@@ -113,6 +114,7 @@ Output ONLY a JSON list of 0s and 1s, one per context:
     try:
         response = _ask_llm(prompt)
         import json
+
         start = response.find("[")
         end = response.rfind("]") + 1
         if start >= 0 and end > start:
@@ -124,14 +126,12 @@ Output ONLY a JSON list of 0s and 1s, one per context:
     return 0.0
 
 
-def context_recall(
-    question: str, contexts: list[str], reference_contexts: list[str]
-) -> float:
+def context_recall(question: str, contexts: list[str], reference_contexts: list[str]) -> float:
     """Score 0-1: what fraction of key reference facts are in the contexts?"""
     if not reference_contexts:
         return 0.0
 
-    context_text = "\n\n".join(f"[{i+1}] {c[:300]}" for i, c in enumerate(contexts))
+    context_text = "\n\n".join(f"[{i + 1}] {c[:300]}" for i, c in enumerate(contexts))
     ref_text = "\n".join(reference_contexts)
 
     prompt = f"""Evaluate how much of the REFERENCE information is covered by the CONTEXTS.

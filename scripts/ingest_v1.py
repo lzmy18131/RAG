@@ -19,7 +19,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ⚠️ pymilvus workaround
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 _REAL_MILVUS = _ENV.get("MILVUS_URI", "milvus.db")
@@ -28,6 +30,7 @@ _REAL_MILVUS = _ENV.get("MILVUS_URI", "milvus.db")
 def _render_page(pdf, page_num: int, out_dir: Path) -> Path:
     """Render a PDF page as a PNG image."""
     import fitz
+
     page = pdf[page_num - 1]  # 0-indexed
     mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for readability
     pix = page.get_pixmap(matrix=mat)
@@ -77,6 +80,7 @@ def main() -> None:
 
     # ── 1. Load VLM ──
     from src.infra.vlm_client import VLMClient
+
     vlm = VLMClient()
     print(f"VLM: {vlm.model}")
 
@@ -120,7 +124,7 @@ def main() -> None:
             print(f"  Page {pn}: ERROR - {e}")
 
     # ── 2b. Tables ──
-    print(f"\nExtracting tables...")
+    print("\nExtracting tables...")
     for pn in range(1, total_pages + 1):
         tables = _extract_tables(doc, pn)
         for t_text in tables:
@@ -142,8 +146,9 @@ def main() -> None:
     doc.close()
 
     # ── 3. Also include original text chunks ──
-    from src.ingestion.pdf_parser import parse_pdf
     from src.ingestion.chunker import chunk_document
+    from src.ingestion.pdf_parser import parse_pdf
+
     text_doc = parse_pdf(str(pdf_path))
     text_chunks = chunk_document(text_doc, chunk_size=500, overlap=50)
     # Update content_type to text for clarity
@@ -151,7 +156,7 @@ def main() -> None:
         c.content_type = "text"
     all_chunks = text_chunks + multimodal_chunks
 
-    print(f"\nChunk summary:")
+    print("\nChunk summary:")
     print(f"  Text chunks:  {len(text_chunks)}")
     print(f"  Image chunks: {img_count}")
     print(f"  Table chunks: {table_count}")
@@ -159,6 +164,7 @@ def main() -> None:
 
     # ── 4. Embed ──
     from src.infra.embedder import Embedder
+
     print("\nLoading BGE-M3...")
     embedder = Embedder()
     embedder.load()
@@ -170,8 +176,11 @@ def main() -> None:
     print(f"  Done: {len(vectors)} vectors")
 
     # ── 5. Store in V1 Collection ──
-    milvus_path = _REAL_MILVUS if _REAL_MILVUS.startswith("http") else str(PROJECT_ROOT / _REAL_MILVUS)
+    milvus_path = (
+        _REAL_MILVUS if _REAL_MILVUS.startswith("http") else str(PROJECT_ROOT / _REAL_MILVUS)
+    )
     from pymilvus import MilvusClient
+
     client = MilvusClient(milvus_path)
 
     COLLECTION = f"v1_multimodal_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -184,17 +193,19 @@ def main() -> None:
     )
 
     data = []
-    for chunk, vec in zip(all_chunks, vectors):
-        data.append({
-            "chunk_id": chunk.chunk_id,
-            "document_id": chunk.document_id,
-            "page_number": chunk.page_number,
-            "content": chunk.content,
-            "content_type": chunk.content_type,
-            "source_file": chunk.source_file,
-            "image_path": chunk.image_path or "",
-            "vector": vec,
-        })
+    for chunk, vec in zip(all_chunks, vectors, strict=False):
+        data.append(
+            {
+                "chunk_id": chunk.chunk_id,
+                "document_id": chunk.document_id,
+                "page_number": chunk.page_number,
+                "content": chunk.content,
+                "content_type": chunk.content_type,
+                "source_file": chunk.source_file,
+                "image_path": chunk.image_path or "",
+                "vector": vec,
+            }
+        )
 
     res = client.insert(collection_name=COLLECTION, data=data)
     client.load_collection(COLLECTION)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,30 +15,39 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 @pytest.fixture
-def client():
-    """Mocked test client."""
-    from unittest.mock import patch, MagicMock
-    with patch("src.api.deps.get_milvus_client"), \
-         patch("src.api.deps.get_retriever"), \
-         patch("src.api.deps.get_vqa"), \
-         patch("src.api.deps.get_bm25"), \
-         patch("src.api.deps.get_latest_v1_collection") as mock_col, \
-         patch("src.api.deps.get_incremental_indexer") as mock_idx, \
-         patch("src.api.deps.get_settings") as mock_set, \
-         patch("src.api.deps.get_embedder"):
+def client(tmp_path):
+    """Mocked test client（data_dir 隔离到 tmp_path，避免假 PDF 污染共享 raw_docs）。"""
+    from unittest.mock import MagicMock, patch
+
+    with (
+        patch("src.api.deps.get_milvus_client"),
+        patch("src.api.deps.get_retriever"),
+        patch("src.api.deps.get_vqa"),
+        patch("src.api.deps.get_bm25"),
+        patch("src.api.deps.get_latest_v1_collection") as mock_col,
+        patch("src.api.deps.get_incremental_indexer") as mock_idx,
+        patch("src.api.deps.get_settings") as mock_set,
+        patch("src.api.routes.get_settings") as mock_route_set,
+        patch("src.api.deps.get_embedder"),
+    ):
         mock_col.return_value = "test_collection"
 
-        # Mock settings
+        # Mock settings（隔离到 tmp_path）
         ms = MagicMock()
-        ms.data_dir = "data"
+        ms.data_dir = str(tmp_path)
         mock_set.return_value = ms
 
         # Mock IncrementalIndexer
         idx = MagicMock()
         idx.process.return_value = {
-            "added": 1, "unchanged": 0, "modified": 0, "deleted": 0,
-            "reprocessed_pages": 2, "reused_chunks": 0,
-            "embedded_chunks": 2, "removed_chunks": 0,
+            "added": 1,
+            "unchanged": 0,
+            "modified": 0,
+            "deleted": 0,
+            "reprocessed_pages": 2,
+            "reused_chunks": 0,
+            "embedded_chunks": 2,
+            "removed_chunks": 0,
         }
         mock_idx.return_value = idx
 
@@ -47,20 +56,28 @@ def client():
             mock_store = MagicMock()
             mock_store.all_files.return_value = {"D:/data/manual.pdf"}
             from src.ingestion.manifest import DocManifest
+
             mock_store.get.return_value = DocManifest(
-                source_file="D:/data/manual.pdf", document_id="abc123",
-                file_hash="a" * 64, file_size=1000, total_pages=10,
-                text_pages=8, num_chunks=5,
+                source_file="D:/data/manual.pdf",
+                document_id="abc123",
+                file_hash="a" * 64,
+                file_size=1000,
+                total_pages=10,
+                text_pages=8,
+                num_chunks=5,
             )
             mock_store_cls.return_value = mock_store
 
             from main import app
-            return TestClient(app)
+
+            yield TestClient(app)
 
 
 class TestIngest:
     def test_ingest_invalid_type(self, client):
-        r = client.post("/documents/ingest", files={"file": ("x.txt", io.BytesIO(b"hi"), "text/plain")})
+        r = client.post(
+            "/documents/ingest", files={"file": ("x.txt", io.BytesIO(b"hi"), "text/plain")}
+        )
         assert r.status_code == 422
 
     def test_ingest_no_filename(self, client):
@@ -76,12 +93,22 @@ class TestIngest:
             mock_doc.close = MagicMock()
             mock_fitz.return_value = mock_doc
             content = b"fake pdf content"
-            r = client.post("/documents/ingest", files={"file": ("test.pdf", io.BytesIO(content), "application/pdf")})
+            r = client.post(
+                "/documents/ingest",
+                files={"file": ("test.pdf", io.BytesIO(content), "application/pdf")},
+            )
             assert r.status_code == 200
             data = r.json()
-            for field in ["added", "unchanged", "modified", "deleted",
-                          "reprocessed_pages", "reused_chunks",
-                          "embedded_chunks", "removed_chunks"]:
+            for field in [
+                "added",
+                "unchanged",
+                "modified",
+                "deleted",
+                "reprocessed_pages",
+                "reused_chunks",
+                "embedded_chunks",
+                "removed_chunks",
+            ]:
                 assert field in data, f"Missing incremental field: {field}"
 
 

@@ -12,12 +12,14 @@ _lock = threading.Lock()
 
 def _read_env() -> dict:
     from dotenv import dotenv_values
+
     return dotenv_values(str(PROJECT_ROOT / ".env"))
 
 
 @lru_cache
 def get_settings():
     from src.config.settings import Settings
+
     env = _read_env()
     return Settings(**{k: v for k, v in env.items() if v})
 
@@ -33,6 +35,7 @@ def _milvus_uri() -> str:
 @lru_cache
 def get_embedder():
     from src.infra.embedder import Embedder
+
     e = Embedder()
     e.load()
     return e
@@ -41,6 +44,7 @@ def get_embedder():
 @lru_cache
 def get_milvus_client():
     from pymilvus import MilvusClient
+
     with _lock:
         return MilvusClient(_milvus_uri())
 
@@ -56,6 +60,7 @@ def get_latest_v1_collection() -> str:
 @lru_cache
 def get_bm25():
     from src.retrieval.bm25 import BM25Retriever
+
     bm = BM25Retriever()
     p = PROJECT_ROOT / "storage" / "bm25"
     if (p / "bm25_index.pkl").exists():
@@ -68,6 +73,7 @@ def get_bm25():
 @lru_cache
 def get_reranker():
     from src.infra.reranker import Reranker
+
     r = Reranker()
     r.load()
     return r
@@ -76,6 +82,7 @@ def get_reranker():
 @lru_cache
 def get_retriever():
     from src.retrieval.reranked_retriever import RerankedRetriever
+
     return RerankedRetriever(
         collection_name=get_latest_v1_collection(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
@@ -88,18 +95,23 @@ def get_retriever():
 
 def _make_llm_verifier():
     """V4 LLM-as-judge verifier — kept for VERIFIER_MODE=llm reproducibility."""
-    from src.infra.llm_client import LLMClient
     import json
+
+    from src.infra.llm_client import LLMClient
 
     llm = LLMClient()
 
     def verifier(question, answer, chunks):
         if not chunks:
-            return {"supported": False, "confidence": 0.0,
-                    "unsupported_claims": ["no chunks"],
-                    "evidence_chunk_ids": [], "reason": "no chunks retrieved"}
+            return {
+                "supported": False,
+                "confidence": 0.0,
+                "unsupported_claims": ["no chunks"],
+                "evidence_chunk_ids": [],
+                "reason": "no chunks retrieved",
+            }
         ctx = "\n\n".join(
-            f"[{i+1}] (p{c['page_number']}) {c.get('content','')[:300]}"
+            f"[{i + 1}] (p{c['page_number']}) {c.get('content', '')[:300]}"
             for i, c in enumerate(chunks)
         )
         prompt = f"""严格判断ANSWER是否基于CONTEXT。输出JSON:
@@ -112,18 +124,22 @@ CONTEXT:\n{ctx}\nANSWER:\n{answer}\n只输出JSON:"""
                 return json.loads(resp[s:e])
         except Exception:
             pass
-        return {"supported": False, "confidence": 0.0,
-                "unsupported_claims": ["parse error"],
-                "evidence_chunk_ids": [], "reason": "verify parse failed"}
+        return {
+            "supported": False,
+            "confidence": 0.0,
+            "unsupported_claims": ["parse error"],
+            "evidence_chunk_ids": [],
+            "reason": "verify parse failed",
+        }
 
     return verifier
 
 
 @lru_cache
 def get_vqa():
-    from src.workflow.verified_qa import VerifiedQA
     from src.generation.generator import generate_answer
-    from src.workflow.grounding import GroundingVerifier, CrossEncoderScorer
+    from src.workflow.grounding import CrossEncoderScorer, GroundingVerifier
+    from src.workflow.verified_qa import VerifiedQA
 
     s = get_settings()
     if s.verifier_mode == "llm":
@@ -150,6 +166,7 @@ def get_vqa():
 @lru_cache
 def get_semantic_cache():
     from src.infra.semantic_cache import SemanticCache
+
     s = get_settings()
     return SemanticCache(
         embedder=get_embedder(),
@@ -161,8 +178,9 @@ def get_semantic_cache():
 
 @lru_cache
 def get_incremental_indexer():
-    from src.ingestion.manifest import ManifestStore
     from src.ingestion.incremental import IncrementalIndexer
+    from src.ingestion.manifest import ManifestStore
+
     store = ManifestStore(PROJECT_ROOT / "storage" / "manifests")
     return IncrementalIndexer(
         milvus_client=get_milvus_client(),

@@ -20,7 +20,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ⚠️  pymilvus ORM requires http:// URI — override env after saving real path.
 import os as _os
+
 from dotenv import dotenv_values as _dotenv_values
+
 _env_vals = _dotenv_values(str(PROJECT_ROOT / ".env"))
 _REAL_MILVUS_URI = _env_vals.get("MILVUS_URI", "milvus.db")
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
@@ -103,13 +105,14 @@ def main() -> None:
         print(f"Sources ({len(retrieved)} chunks):")
         for i, c in enumerate(retrieved, 1):
             fn = Path(c["source_file"]).name if c["source_file"] else "?"
-            print(f"  [{i}] {fn}, p{c['page_number']} "
-                  f"(score={c['retrieval_score']:.4f})")
-            snippet = c['content'][:100].encode('ascii', errors='replace').decode('ascii')
-            print(f"      \"{snippet}...\"")
+            print(f"  [{i}] {fn}, p{c['page_number']} (score={c['retrieval_score']:.4f})")
+            snippet = c["content"][:100].encode("ascii", errors="replace").decode("ascii")
+            print(f'      "{snippet}..."')
         print(f"\nModel: {result['model']}")
-        print(f"Timing: retrieval={retrieval_time:.1f}s, "
-              f"gen={gen_time:.1f}s, total={time.perf_counter()-t0:.1f}s")
+        print(
+            f"Timing: retrieval={retrieval_time:.1f}s, "
+            f"gen={gen_time:.1f}s, total={time.perf_counter() - t0:.1f}s"
+        )
 
     retriever.close()
 

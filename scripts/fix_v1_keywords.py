@@ -15,7 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
@@ -42,6 +44,7 @@ SUMMARIES: dict[int, str] = {
 
 def main() -> None:
     from pymilvus import MilvusClient
+
     from src.infra.embedder import Embedder
 
     milvus_path = str(PROJECT_ROOT / _ENV.get("MILVUS_URI", "milvus.db"))
@@ -59,9 +62,16 @@ def main() -> None:
     # ── Get all chunks from old V1 ──
     all_chunks = client.query(
         collection_name=old_col,
-        filter="chunk_id != \"\"",
-        output_fields=["chunk_id", "document_id", "page_number", "content",
-                       "content_type", "source_file", "image_path"],
+        filter='chunk_id != ""',
+        output_fields=[
+            "chunk_id",
+            "document_id",
+            "page_number",
+            "content",
+            "content_type",
+            "source_file",
+            "image_path",
+        ],
         limit=100,
     )
     print(f"Read {len(all_chunks)} chunks from {old_col}")
@@ -102,17 +112,19 @@ def main() -> None:
     )
 
     data = []
-    for chunk, vec in zip(all_chunks, vectors):
-        data.append({
-            "chunk_id": chunk.get("chunk_id", ""),
-            "document_id": chunk.get("document_id", ""),
-            "page_number": chunk.get("page_number", 0),
-            "content": chunk["content"],
-            "content_type": chunk.get("content_type", "text"),
-            "source_file": chunk.get("source_file", ""),
-            "image_path": chunk.get("image_path", ""),
-            "vector": vec,
-        })
+    for chunk, vec in zip(all_chunks, vectors, strict=False):
+        data.append(
+            {
+                "chunk_id": chunk.get("chunk_id", ""),
+                "document_id": chunk.get("document_id", ""),
+                "page_number": chunk.get("page_number", 0),
+                "content": chunk["content"],
+                "content_type": chunk.get("content_type", "text"),
+                "source_file": chunk.get("source_file", ""),
+                "image_path": chunk.get("image_path", ""),
+                "vector": vec,
+            }
+        )
 
     res = client.insert(collection_name=new_col, data=data)
     client.load_collection(new_col)
@@ -120,17 +132,20 @@ def main() -> None:
 
     # ── Verify Q18 ──
     from src.retrieval.retriever import DenseRetriever
+
     retriever = DenseRetriever(collection_name=new_col)
     results = retriever.search("机器人会不会从楼梯摔下去？", top_k=5)
-    print(f"\nQ18: 机器人会不会从楼梯摔下去？")
+    print("\nQ18: 机器人会不会从楼梯摔下去？")
     for i, r in enumerate(results, 1):
-        print(f"  [{i}] type={r.get('content_type', '?')}, page={r.get('page_number', '?')}, "
-              f"score={r.get('retrieval_score', 0):.4f}")
+        print(
+            f"  [{i}] type={r.get('content_type', '?')}, page={r.get('page_number', '?')}, "
+            f"score={r.get('retrieval_score', 0):.4f}"
+        )
         print(f"      {r['content'][:100]}...")
 
     # ── Verify table ──
     table_results = retriever.search("产品有害物质含量表", top_k=3)
-    print(f"\nTable query: 产品有害物质含量表")
+    print("\nTable query: 产品有害物质含量表")
     for i, r in enumerate(table_results, 1):
         print(f"  [{i}] type={r.get('content_type', '?')}, page={r.get('page_number', '?')}")
 

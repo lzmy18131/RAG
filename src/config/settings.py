@@ -4,6 +4,7 @@ All secrets are read from environment or .env — never hardcoded.
 """
 
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,13 +51,13 @@ class Settings(BaseSettings):
     grounding_min_support_ratio: float = 0.7
 
     # ── V7 LLM gateway (retry / circuit breaker / failover / timeout) ──
-    llm_timeout: float = 60.0            # per-attempt cap (s); SDK default was 600s
-    llm_max_retries: int = 2             # attempts per provider = max_retries + 1
+    llm_timeout: float = 60.0  # per-attempt cap (s); SDK default was 600s
+    llm_max_retries: int = 2  # attempts per provider = max_retries + 1
     llm_retry_base: float = 1.0
     llm_retry_multiplier: float = 2.0
     llm_retry_cap: float = 8.0
-    llm_circuit_threshold: int = 3       # consecutive failures to OPEN the breaker
-    llm_circuit_cooldown: float = 30.0   # s before HALF_OPEN probe
+    llm_circuit_threshold: int = 3  # consecutive failures to OPEN the breaker
+    llm_circuit_cooldown: float = 30.0  # s before HALF_OPEN probe
     llm_fallback_answer: str = "模型服务暂时不可用，无法回答此问题，请稍后重试。"
     # Backup providers (blank = not configured; fill all three to activate failover)
     llm_base_url_2: str = ""
@@ -68,8 +69,8 @@ class Settings(BaseSettings):
 
     # ── V9 semantic cache ──
     cache_enabled: bool = True
-    cache_threshold: float = 0.9        # cosine for a semantic (paraphrase) hit
-    cache_ttl_days: int | None = None   # None = never expires (fixed KB)
+    cache_threshold: float = 0.9  # cosine for a semantic (paraphrase) hit
+    cache_ttl_days: int | None = None  # None = never expires (fixed KB)
     cache_db_path: str = "storage/semantic_cache.db"
 
     @property

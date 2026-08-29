@@ -5,8 +5,8 @@ Flow: Query → Hybrid top-20 → Reranker score → top-5 final
 
 from __future__ import annotations
 
-from src.retrieval.hybrid_retriever import HybridRetriever, HybridRetrievalError
 from src.infra.reranker import Reranker
+from src.retrieval.hybrid_retriever import HybridRetrievalError, HybridRetriever
 
 
 class RerankerUnavailableError(Exception):
@@ -45,25 +45,29 @@ class RerankedRetriever:
         return self._reranker
 
     def search(
-        self, query: str, top_k: int | None = None, mode: str = "reranked",
+        self,
+        query: str,
+        top_k: int | None = None,
+        mode: str = "reranked",
         doc_filter: str | None = None,
     ) -> list[dict]:
         final_k = top_k or self.final_top_k
 
         if mode == "v2_hybrid":
-            return self._hybrid.search(query, top_k=final_k, mode="hybrid",
-                                       doc_filter=doc_filter)
+            return self._hybrid.search(query, top_k=final_k, mode="hybrid", doc_filter=doc_filter)
 
         # ── Stage 1: Hybrid candidate recall ──
         try:
             candidates = self._hybrid.search(
-                query, top_k=self.candidate_top_k, mode="hybrid",
+                query,
+                top_k=self.candidate_top_k,
+                mode="hybrid",
                 doc_filter=doc_filter,
             )
         except HybridRetrievalError:
             raise HybridRetrievalError(
                 "Stage-1 hybrid recall failed — cannot proceed to rerank"
-            )
+            ) from None
 
         if len(candidates) == 0:
             return []
@@ -81,7 +85,7 @@ class RerankedRetriever:
 
         if not reranker_ok or len(scores) != len(candidates):
             # Degrade to V2 Hybrid
-            for i, c in enumerate(candidates[:final_k]):
+            for _, c in enumerate(candidates[:final_k]):
                 c["rerank_score"] = None
                 c["rerank_rank"] = None
                 c["ranking_changed"] = False
@@ -100,7 +104,7 @@ class RerankedRetriever:
         for new_rank, c in enumerate(reranked, 1):
             old_rank = c.get("original_hybrid_rank", new_rank)
             c["rerank_rank"] = new_rank
-            c["ranking_changed"] = (old_rank != new_rank)
+            c["ranking_changed"] = old_rank != new_rank
 
         return reranked[:final_k]
 

@@ -93,8 +93,8 @@ class TestSemanticCache:
     def test_stats(self, tmp_path):
         c = _cache(tmp_path)
         c.put("q1", {"answer": "A"})
-        c.get("q1")            # hit
-        c.get("q2")            # miss
+        c.get("q1")  # hit
+        c.get("q2")  # miss
         s = c.stats()
         assert s["entries"] == 1
         assert s["hits"] == 1

@@ -215,6 +215,7 @@ def test_milvus() -> SmokeResult:
         # Clean up the temporary collection
         try:
             from src.infra.milvus_client import MilvusAdapter
+
             m = MilvusAdapter()
             m.connect()
             m.drop_collection(collection_name)

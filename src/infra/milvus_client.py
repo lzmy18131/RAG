@@ -5,6 +5,7 @@ Milvus Lite (local file) and Milvus Server via configuration.
 """
 
 from pymilvus import MilvusClient
+
 from src.config.settings import settings
 
 
@@ -55,9 +56,7 @@ class MilvusAdapter:
             data=[{"text": text, "vector": vector}],
         )
 
-    def search(
-        self, collection_name: str, vector: list[float], top_k: int = 1
-    ) -> list[dict]:
+    def search(self, collection_name: str, vector: list[float], top_k: int = 1) -> list[dict]:
         """Search for nearest neighbors. Returns list of result dicts."""
         if self._client is None:
             raise RuntimeError("Not connected. Call connect() first.")

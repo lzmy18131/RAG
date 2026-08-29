@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import shutil
 import sys
@@ -29,7 +28,8 @@ def ws():
     root = Path(tempfile.mkdtemp(prefix="p7incr_"))
     (root / "docs").mkdir()
     yield {
-        "root": root, "docs": root / "docs",
+        "root": root,
+        "docs": root / "docs",
         "milvus": str(root / "milvus.db"),
         "bm25": str(root / "bm25"),
         "manifests": root / "manifests",
@@ -40,19 +40,19 @@ def ws():
 def _setup(ws):
     """Create collection, load embedder, return (indexer, collection_name)."""
     from pymilvus import MilvusClient
-    from src.infra.embedder import Embedder
-    from src.retrieval.bm25 import BM25Retriever
-    from src.ingestion.manifest import ManifestStore
-    from src.ingestion.incremental import IncrementalIndexer
 
     # Mock PDF parsing (temp files are plain text, not real PDFs)
     import src.ingestion.incremental as incr_mod
-    orig_parse = incr_mod.parse_pdf
-    orig_chunk = incr_mod.chunk_document
+    from src.infra.embedder import Embedder
+    from src.ingestion.incremental import IncrementalIndexer
+    from src.ingestion.manifest import ManifestStore
+    from src.retrieval.bm25 import BM25Retriever
 
     def _fake_parse(path):
-        from src.ingestion.document import Document, _make_document_id
         import hashlib
+
+        from src.ingestion.document import Document, _make_document_id
+
         text = Path(path).read_text(encoding="utf-8")
         pages = [p.strip() for p in text.split("\f") if p.strip()]
         if not pages:
@@ -69,19 +69,22 @@ def _setup(ws):
 
     def _fake_chunk(doc, chunk_size=500, overlap=50):
         from src.ingestion.document import Chunk
+
         chunks = []
-        for seq, (pn, text) in enumerate(zip(doc.page_numbers, doc.pages)):
+        for seq, (pn, text) in enumerate(zip(doc.page_numbers, doc.pages, strict=False)):
             cid = hashlib.sha256(f"{doc.document_id}|p{pn}|s{seq}".encode()).hexdigest()[:16]
-            chunks.append(Chunk(
-                document_id=doc.document_id,
-                document_version=doc.version,
-                page_number=pn,
-                content=text,
-                content_type="text",
-                source_file=doc.source_file,
-                seq=seq,
-                chunk_id=cid,
-            ))
+            chunks.append(
+                Chunk(
+                    document_id=doc.document_id,
+                    document_version=doc.version,
+                    page_number=pn,
+                    content=text,
+                    content_type="text",
+                    source_file=doc.source_file,
+                    seq=seq,
+                    chunk_id=cid,
+                )
+            )
         return chunks
 
     incr_mod.parse_pdf = _fake_parse
@@ -117,8 +120,9 @@ class TestIncrementalSameCollection:
         assert indexer.embed_call_count == 1
 
         client.load_collection(col)
-        results = client.query(col, filter="source_file != \"\"",
-                               output_fields=["source_file"], limit=10)
+        results = client.query(
+            col, filter='source_file != ""', output_fields=["source_file"], limit=10
+        )
         assert len(results) == 2
         client.close()
 
@@ -137,12 +141,12 @@ class TestIncrementalSameCollection:
         assert counts2["reused_chunks"] == 2
         assert counts2["embedded_chunks"] == 0
         assert counts2["added"] == 0
-        assert indexer.embed_call_count == calls_before, \
-            "Unchanged doc must not call embedder"
+        assert indexer.embed_call_count == calls_before, "Unchanged doc must not call embedder"
 
         client.load_collection(col)
-        results = client.query(col, filter="source_file != \"\"",
-                               output_fields=["source_file"], limit=10)
+        results = client.query(
+            col, filter='source_file != ""', output_fields=["source_file"], limit=10
+        )
         assert len(results) == 2
         client.close()
 
@@ -153,8 +157,9 @@ class TestIncrementalSameCollection:
         # Initial
         indexer.process(str(ws["docs"]))
         client.load_collection(col)
-        old_results = client.query(col, filter="content like \"%旧版本%\"",
-                                   output_fields=["content"], limit=10)
+        old_results = client.query(
+            col, filter='content like "%旧版本%"', output_fields=["content"], limit=10
+        )
         assert len(old_results) == 2
 
         # Modify
@@ -165,12 +170,14 @@ class TestIncrementalSameCollection:
         assert counts["removed_chunks"] == 2  # old chunks deleted
 
         # Same collection — old content GONE, new content PRESENT
-        old_after = client.query(col, filter="content like \"%旧版本%\"",
-                                 output_fields=["content"], limit=10)
+        old_after = client.query(
+            col, filter='content like "%旧版本%"', output_fields=["content"], limit=10
+        )
         assert len(old_after) == 0, "Old chunks must be deleted from same collection"
 
-        new_after = client.query(col, filter="content like \"%新版本%\"",
-                                 output_fields=["content"], limit=10)
+        new_after = client.query(
+            col, filter='content like "%新版本%"', output_fields=["content"], limit=10
+        )
         assert len(new_after) == 2, "New chunks must be present"
         client.close()
 
@@ -183,8 +190,12 @@ class TestIncrementalSameCollection:
         client.load_collection(col)
 
         # Both present
-        all_sources = {r["source_file"] for r in client.query(
-            col, filter="source_file != \"\"", output_fields=["source_file"], limit=20)}
+        all_sources = {
+            r["source_file"]
+            for r in client.query(
+                col, filter='source_file != ""', output_fields=["source_file"], limit=20
+            )
+        }
         assert any("del.pdf" in s for s in all_sources)
         assert any("keep.pdf" in s for s in all_sources)
 
@@ -195,12 +206,14 @@ class TestIncrementalSameCollection:
         assert counts["removed_chunks"] >= 1
 
         # Same collection — deleted content GONE, kept content PRESENT
-        after_sources = {r["source_file"] for r in client.query(
-            col, filter="source_file != \"\"", output_fields=["source_file"], limit=20)}
-        assert not any("del.pdf" in s for s in after_sources), \
-            "Deleted doc must not be retrievable"
-        assert any("keep.pdf" in s for s in after_sources), \
-            "Kept doc must still be retrievable"
+        after_sources = {
+            r["source_file"]
+            for r in client.query(
+                col, filter='source_file != ""', output_fields=["source_file"], limit=20
+            )
+        }
+        assert not any("del.pdf" in s for s in after_sources), "Deleted doc must not be retrievable"
+        assert any("keep.pdf" in s for s in after_sources), "Kept doc must still be retrievable"
         client.close()
 
     def test_bm25_incremental_update(self, ws):
@@ -230,8 +243,9 @@ class TestIncrementalSameCollection:
         indexer.process(str(ws["docs"]))
         assert bm.num_docs == 1
         hits3 = bm.search("温度", top_k=3)
-        assert not any("bm.pdf" in h.get("source_file", "") for h in hits3), \
+        assert not any("bm.pdf" in h.get("source_file", "") for h in hits3), (
             "Deleted doc must not appear in BM25 results"
+        )
 
     def test_failure_preserves_state(self, ws):
         """Embedding failure must not corrupt index or manifest."""
@@ -241,15 +255,18 @@ class TestIncrementalSameCollection:
 
         indexer.process(str(ws["docs"]))
         client.load_collection(col)
-        before = client.query(col, filter="source_file != \"\"",
-                              output_fields=["source_file"], limit=20)
+        before = client.query(
+            col, filter='source_file != ""', output_fields=["source_file"], limit=20
+        )
         before_sources = {r["source_file"] for r in before}
         assert len(before_sources) >= 2
 
         # Corrupt embedder
         orig_encode = embedder.encode_batch
+
         def failing_encode(*args, **kwargs):
             raise RuntimeError("simulated embed failure")
+
         embedder.encode_batch = failing_encode
 
         # Add a new doc — should fail
@@ -263,8 +280,9 @@ class TestIncrementalSameCollection:
         embedder.encode_batch = orig_encode
 
         # Old data must still be retrievable
-        after = client.query(col, filter="source_file != \"\"",
-                             output_fields=["source_file"], limit=20)
+        after = client.query(
+            col, filter='source_file != ""', output_fields=["source_file"], limit=20
+        )
         after_sources = {r["source_file"] for r in after}
         for s in before_sources:
             assert s in after_sources, f"Pre-existing source {s} lost after failure"

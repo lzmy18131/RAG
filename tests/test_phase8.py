@@ -16,36 +16,37 @@ sys.path.insert(0, str(PROJECT_ROOT))
 @pytest.fixture
 def client():
     """Test client with mocked retriever and VQA to avoid Milvus Lite locks."""
-    with patch("src.api.deps.get_milvus_client") as mock_mc, \
-         patch("src.api.deps.get_retriever") as mock_ret, \
-         patch("src.api.deps.get_vqa") as mock_vqa, \
-         patch("src.api.deps.get_bm25") as mock_bm, \
-         patch("src.api.deps.get_latest_v1_collection") as mock_col, \
-         patch("src.api.routes.get_semantic_cache") as mock_cache:
-
+    with (
+        patch("src.api.deps.get_milvus_client"),
+        patch("src.api.deps.get_retriever"),
+        patch("src.api.deps.get_vqa"),
+        patch("src.api.routes.get_vqa") as mock_vqa,
+        patch("src.api.deps.get_bm25"),
+        patch("src.api.deps.get_latest_v1_collection") as mock_col,
+        patch("src.api.routes.get_semantic_cache") as mock_cache,
+        patch("src.api.deps.get_embedder"),
+    ):
         mock_col.return_value = "test_collection"
         mock_cache.return_value = MagicMock()
         mock_cache.return_value.get.return_value = None  # always a cache miss in tests
-        mock_mc.return_value = MagicMock()
-        mock_bm.return_value = MagicMock()
-        mock_bm.return_value.num_docs = 48
-
-        # Mock retriever
-        mock_ret.return_value = MagicMock()
-        mock_ret.return_value.collection_name = "test_collection"
 
         # Mock VQA
-        def fake_run(question):
+        def fake_run(question, doc_filter=None):
             refused = "核聚变" in question or "火星" in question
             return {
                 "question": question,
                 "retrieved_chunks": [
-                    {"chunk_id": "c1", "source_file": "/a/manual.pdf",
-                     "page_number": 24, "content_type": "text",
-                     "rerank_score": 0.5},
+                    {
+                        "chunk_id": "c1",
+                        "source_file": "/a/manual.pdf",
+                        "page_number": 24,
+                        "content_type": "text",
+                        "rerank_score": 0.5,
+                    },
                 ],
-                "answer": "根据现有说明书内容无法回答此问题。" if refused
-                          else "请检查电源线，确认电池有电后重启。[来源: manual.pdf, p24]",
+                "answer": "根据现有说明书内容无法回答此问题。"
+                if refused
+                else "请检查电源线，确认电池有电后重启。[来源: manual.pdf, p24]",
                 "final_status": "refused" if refused else "answered",
                 "citations": [],
                 "verification_result": {
@@ -62,7 +63,9 @@ def client():
         mock_vqa.return_value.run = fake_run
 
         from main import app
-        return TestClient(app)
+
+        # 必须 yield（而非 return）：保持 with 补丁在测试执行期间生效
+        yield TestClient(app)
 
 
 class TestHealth:
@@ -71,7 +74,7 @@ class TestHealth:
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "ok"
-        assert data["version"] == "V5"
+        assert data["version"] == "V9"
 
     def test_health_has_models(self, client):
         r = client.get("/health")
@@ -83,8 +86,15 @@ class TestQuery:
         r = client.post("/query", json={"question": "设备无法开机怎么办？"})
         assert r.status_code == 200
         data = r.json()
-        for field in ["question", "answer", "final_status", "sources",
-                       "evidence_chunk_ids", "verification", "timing_s"]:
+        for field in [
+            "question",
+            "answer",
+            "final_status",
+            "sources",
+            "evidence_chunk_ids",
+            "verification",
+            "timing_s",
+        ]:
             assert field in data, f"Missing: {field}"
 
     def test_query_sources_have_fields(self, client):
@@ -112,8 +122,10 @@ class TestIngest:
 
     def test_ingest_invalid_type(self, client):
         import io
-        r = client.post("/documents/ingest",
-                        files={"file": ("test.txt", io.BytesIO(b"hello"), "text/plain")})
+
+        r = client.post(
+            "/documents/ingest", files={"file": ("test.txt", io.BytesIO(b"hello"), "text/plain")}
+        )
         assert r.status_code == 422
         assert "Unsupported" in r.text or "unsupported" in r.text.lower()
 
@@ -132,9 +144,14 @@ class TestExperiments:
 
 class TestEvaluate:
     def test_evaluate_route(self, client):
-        r = client.post("/evaluate", json={
-            "experiment": "v0_baseline", "dataset": "v0_questions", "max_questions": 3,
-        })
+        r = client.post(
+            "/evaluate",
+            json={
+                "experiment": "v0_baseline",
+                "dataset": "v0_questions",
+                "max_questions": 3,
+            },
+        )
         assert r.status_code == 200
         data = r.json()
         assert "run_id" in data

@@ -10,13 +10,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # ── Helpers ──
+
 
 def _make_pdf(path: Path, content: str) -> None:
     """Create a minimal PDF with given text content (only for hash testing)."""
@@ -34,6 +33,7 @@ def _sha256(text: str) -> str:
 class TestManifestStore:
     def test_file_hash_consistent(self):
         from src.ingestion.manifest import file_hash
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("test content")
             f.flush()
@@ -44,6 +44,7 @@ class TestManifestStore:
 
     def test_file_hash_different(self):
         from src.ingestion.manifest import file_hash
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f1:
             f1.write("content A")
             f1.flush()
@@ -58,11 +59,11 @@ class TestManifestStore:
 
     def test_classify_first_import_all_added(self):
         from src.ingestion.manifest import ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
-            current = {"/a/doc1.pdf": _sha256("doc1"),
-                        "/a/doc2.pdf": _sha256("doc2")}
+            current = {"/a/doc1.pdf": _sha256("doc1"), "/a/doc2.pdf": _sha256("doc2")}
             c = store.classify(current)
             assert len(c["added"]) == 2
             assert len(c["unchanged"]) == 0
@@ -71,7 +72,8 @@ class TestManifestStore:
             shutil.rmtree(store_dir, ignore_errors=True)
 
     def test_classify_second_import_all_unchanged(self):
-        from src.ingestion.manifest import ManifestStore, DocManifest
+        from src.ingestion.manifest import DocManifest, ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
@@ -90,7 +92,8 @@ class TestManifestStore:
             shutil.rmtree(store_dir, ignore_errors=True)
 
     def test_classify_modified_detected(self):
-        from src.ingestion.manifest import ManifestStore, DocManifest
+        from src.ingestion.manifest import DocManifest, ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
@@ -107,7 +110,8 @@ class TestManifestStore:
             shutil.rmtree(store_dir, ignore_errors=True)
 
     def test_classify_deleted_detected(self):
-        from src.ingestion.manifest import ManifestStore, DocManifest
+        from src.ingestion.manifest import DocManifest, ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
@@ -124,7 +128,8 @@ class TestManifestStore:
             shutil.rmtree(store_dir, ignore_errors=True)
 
     def test_classify_added_unchanged_modified_deleted(self):
-        from src.ingestion.manifest import ManifestStore, DocManifest
+        from src.ingestion.manifest import DocManifest, ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
@@ -147,7 +152,8 @@ class TestManifestStore:
             shutil.rmtree(store_dir, ignore_errors=True)
 
     def test_remove_deleted_from_store(self):
-        from src.ingestion.manifest import ManifestStore, DocManifest
+        from src.ingestion.manifest import DocManifest, ManifestStore
+
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
@@ -175,16 +181,29 @@ def test_incremental_report_has_all_counts() -> None:
     if not path.exists():
         # Run incremental update on the real data
         import subprocess
+
         subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "scripts" / "incremental_update.py"),
-             "--input", str(PROJECT_ROOT / "data" / "raw_docs")],
-            capture_output=True, cwd=str(PROJECT_ROOT),
+            [
+                sys.executable,
+                str(PROJECT_ROOT / "scripts" / "incremental_update.py"),
+                "--input",
+                str(PROJECT_ROOT / "data" / "raw_docs"),
+            ],
+            capture_output=True,
+            cwd=str(PROJECT_ROOT),
         )
     with open(path, encoding="utf-8") as f:
         report = json.load(f)
-    for field in ["added_count", "unchanged_count", "modified_count",
-                  "deleted_count", "reprocessed_pages", "reused_chunks",
-                  "embedded_chunks", "removed_chunks"]:
+    for field in [
+        "added_count",
+        "unchanged_count",
+        "modified_count",
+        "deleted_count",
+        "reprocessed_pages",
+        "reused_chunks",
+        "embedded_chunks",
+        "removed_chunks",
+    ]:
         assert field in report["counts"], f"Missing in counts: {field}"
     assert "elapsed_seconds" in report, "Missing: elapsed_seconds"
 

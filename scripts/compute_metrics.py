@@ -64,9 +64,7 @@ def main() -> None:
         q_info = q_lookup.get(qid, {})
         gold_pages = q_info.get("gold_pages", [])
 
-        retrieved_pages = set(
-            c["page_number"] for c in result["retrieved_chunks"]
-        )
+        retrieved_pages = set(c["page_number"] for c in result["retrieved_chunks"])
         found = [p for p in gold_pages if p in retrieved_pages]
         is_hit = len(found) > 0
         recall = len(found) / len(gold_pages) if gold_pages else 1.0
@@ -76,16 +74,18 @@ def main() -> None:
         total_gold += len(gold_pages)
         recalled_gold += len(found)
 
-        per_question.append({
-            "question_id": qid,
-            "question": result["question"][:80],
-            "modality": q_info.get("modality_required", "?"),
-            "gold_pages": gold_pages,
-            "retrieved_pages": sorted(retrieved_pages),
-            "found_pages": found,
-            "hit": is_hit,
-            "recall_at_5": round(recall, 4),
-        })
+        per_question.append(
+            {
+                "question_id": qid,
+                "question": result["question"][:80],
+                "modality": q_info.get("modality_required", "?"),
+                "gold_pages": gold_pages,
+                "retrieved_pages": sorted(retrieved_pages),
+                "found_pages": found,
+                "hit": is_hit,
+                "recall_at_5": round(recall, 4),
+            }
+        )
 
     avg_recall = recalled_gold / total_gold if total_gold else 0.0
     hit_rate = hits / len(text_results) if text_results else 0.0
@@ -117,24 +117,24 @@ def main() -> None:
 
     # ── 6. Print summary ──
     print(f"\n{'=' * 60}")
-    print(f"V0 Text-Only Retrieval Metrics")
+    print("V0 Text-Only Retrieval Metrics")
     print(f"{'=' * 60}")
     print(f"  Total questions:  {len(v0_results)}")
     print(f"  Text-only:        {len(text_results)}")
-    print(f"  Excluded:         {sorted(excluded_ids)} "
-          f"(modality_required != 'text')")
-    print(f"  Recall@5:         {avg_recall:.4f} "
-          f"({recalled_gold}/{total_gold})")
+    print(f"  Excluded:         {sorted(excluded_ids)} (modality_required != 'text')")
+    print(f"  Recall@5:         {avg_recall:.4f} ({recalled_gold}/{total_gold})")
     print(f"  Top-5 Hits:       {hits}/{len(text_results)}")
     print(f"  Hit Rate:         {hit_rate:.4f}")
-    print(f"\nPer-question:")
+    print("\nPer-question:")
     for pq in per_question:
         status = "HIT " if pq["hit"] else "MISS"
-        print(f"  Q{pq['question_id']:2d}: {status}  "
-              f"modality={pq['modality']:5s}  "
-              f"gold={str(pq['gold_pages']):10s}  "
-              f"found={str(pq['found_pages']):10s}  "
-              f"recall={pq['recall_at_5']:.2f}")
+        print(
+            f"  Q{pq['question_id']:2d}: {status}  "
+            f"modality={pq['modality']:5s}  "
+            f"gold={str(pq['gold_pages']):10s}  "
+            f"found={str(pq['found_pages']):10s}  "
+            f"recall={pq['recall_at_5']:.2f}"
+        )
     print(f"\n  Metrics saved to: {metrics_path}")
 
 

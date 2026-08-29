@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
 
 
 def file_hash(path: str | Path) -> str:
@@ -52,7 +52,7 @@ class DocManifest:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "DocManifest":
+    def from_dict(cls, d: dict) -> DocManifest:
         return cls(**d)
 
 
@@ -73,16 +73,31 @@ class ManifestStore:
         if p.exists():
             with open(p, encoding="utf-8") as f:
                 data = json.load(f)
-            self._manifests = {
-                k: DocManifest.from_dict(v) for k, v in data.items()
-            }
+            self._manifests = {k: DocManifest.from_dict(v) for k, v in data.items()}
 
     def save(self) -> None:
-        with open(self._path(), "w", encoding="utf-8") as f:
-            json.dump(
-                {k: v.to_dict() for k, v in self._manifests.items()},
-                f, ensure_ascii=False, indent=2,
-            )
+        """原子写（audit P0-3）：tmp 文件 + os.replace，中断不损坏 manifests.json。"""
+        import os
+        import tempfile
+
+        path = self._path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(
+                    {k: v.to_dict() for k, v in self._manifests.items()},
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def get(self, source_file: str) -> DocManifest | None:
         return self._manifests.get(source_file)
@@ -97,7 +112,8 @@ class ManifestStore:
         return set(self._manifests.keys())
 
     def classify(
-        self, current_files: dict[str, str]  # path → sha256
+        self,
+        current_files: dict[str, str],  # path → sha256
     ) -> dict[str, list[str]]:
         """Classify files: added, unchanged, modified, deleted.
 

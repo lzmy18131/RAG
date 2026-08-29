@@ -25,19 +25,21 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os as _os
+
 from dotenv import dotenv_values as _dv
+
 _os.environ["MILVUS_URI"] = "http://localhost:19530"
 _ENV = _dv(str(PROJECT_ROOT / ".env"))
 
 # Low-level grounding pieces reused by the sweep (no re-embedding per combo)
 from src.workflow.grounding import (  # noqa: E402
-    split_sentences, strip_citation_markers,
+    split_sentences,
+    strip_citation_markers,
 )
 
 MIN_SENT_LEN = 5
@@ -67,6 +69,7 @@ def _get_v1_col() -> str:
     gRPC keepalive throttling and stall the first search.
     """
     from src.api.deps import get_latest_v1_collection
+
     return get_latest_v1_collection()
 
 
@@ -75,18 +78,28 @@ def _get_v1_col() -> str:
 
 def _load_cases(full: bool) -> list[dict]:
     if full:
-        with open(PROJECT_ROOT / "data" / "eval_dataset" / "golden_100.json", encoding="utf-8") as f:
+        with open(
+            PROJECT_ROOT / "data" / "eval_dataset" / "golden_100.json", encoding="utf-8"
+        ) as f:
             data = json.load(f)
         return [
-            {"question": q["question"], "gold_pages": q.get("gold_pages", []),
-             "modality": q.get("modality_required", "text"), "label": "fixed"}
+            {
+                "question": q["question"],
+                "gold_pages": q.get("gold_pages", []),
+                "modality": q.get("modality_required", "text"),
+                "label": "fixed",
+            }
             for q in data
         ]
     with open(PROJECT_ROOT / "data" / "eval_dataset" / "v0_questions.json", encoding="utf-8") as f:
         questions = json.load(f)
     return [
-        {"question": q["question"], "gold_pages": q.get("gold_pages", []),
-         "modality": q.get("modality_required", "text"), "label": "fixed"}
+        {
+            "question": q["question"],
+            "gold_pages": q.get("gold_pages", []),
+            "modality": q.get("modality_required", "text"),
+            "label": "fixed",
+        }
         for q in questions
     ] + EDGE_CASES
 
@@ -141,36 +154,33 @@ def _precompute(scorer, answer: str, chunks: list[dict]) -> dict | None:
     return {"rows": rows}
 
 
-def _decide(pre: dict | None, answer: str,
-            floor: float, ratio: float) -> dict:
+def _decide(pre: dict | None, answer: str, floor: float, ratio: float) -> dict:
     if any(p in (answer or "") for p in ("无法回答", "无法回答此问题")):
-        return {"status": "refused", "supported": False, "ratio": 0.0,
-                "n_supported": 0, "n": 0}
+        return {"status": "refused", "supported": False, "ratio": 0.0, "n_supported": 0, "n": 0}
     if pre is None:
-        return {"status": "refused", "supported": False, "ratio": 0.0,
-                "n_supported": 0, "n": 0}
+        return {"status": "refused", "supported": False, "ratio": 0.0, "n_supported": 0, "n": 0}
     n = len(pre["rows"])
     if n == 0:
-        return {"status": "answered", "supported": True, "ratio": 1.0,
-                "n_supported": 0, "n": 0}
+        return {"status": "answered", "supported": True, "ratio": 1.0, "n_supported": 0, "n": 0}
     n_sup = sum(1 for row in pre["rows"] if row["best"] >= floor)
     r = n_sup / n
     ok = r >= ratio
-    return {"status": "answered" if ok else "refused", "supported": ok,
-            "ratio": round(r, 4), "n_supported": n_sup, "n": n}
+    return {
+        "status": "answered" if ok else "refused",
+        "supported": ok,
+        "ratio": round(r, 4),
+        "n_supported": n_sup,
+        "n": n,
+    }
 
 
 def _sweep(scorer, records: list[dict]) -> dict:
     # Precompute cross-encoder scores once per case (only GPU cost in the sweep)
     pre = []
     for rec in records:
-        pre.append(_precompute(scorer, rec.get("answer", ""),
-                               rec.get("retrieved_chunks", [])))
+        pre.append(_precompute(scorer, rec.get("answer", ""), rec.get("retrieved_chunks", [])))
 
-    combos = [
-        (fl, ra)
-        for fl in SWEEP_SCORER_FLOOR for ra in SWEEP_RATIO
-    ]
+    combos = [(fl, ra) for fl in SWEEP_SCORER_FLOOR for ra in SWEEP_RATIO]
     sweep_results = []
     for fl, ra in combos:
         answered_fixed = 0
@@ -182,23 +192,28 @@ def _sweep(scorer, records: list[dict]) -> dict:
                     answered_fixed += 1
             elif dec["status"] == "refused":
                 refused_edge += 1
-        sweep_results.append({
-            "scorer_floor": fl,
-            "min_support_ratio": ra,
-            "answered_fixed": answered_fixed,
-            "refused_edge": refused_edge,
-            "score": answered_fixed + refused_edge,
-        })
+        sweep_results.append(
+            {
+                "scorer_floor": fl,
+                "min_support_ratio": ra,
+                "answered_fixed": answered_fixed,
+                "refused_edge": refused_edge,
+                "score": answered_fixed + refused_edge,
+            }
+        )
 
     # Recommended: max score, tie-break toward stricter floor
     best = max(sweep_results, key=lambda r: (r["score"], r["scorer_floor"]))
-    return {"combos": sweep_results, "recommended": {
-        "scorer": "reranker",
-        "scorer_floor": best["scorer_floor"],
-        "min_support_ratio": best["min_support_ratio"],
-        "answered_fixed": best["answered_fixed"],
-        "refused_edge": best["refused_edge"],
-    }}
+    return {
+        "combos": sweep_results,
+        "recommended": {
+            "scorer": "reranker",
+            "scorer_floor": best["scorer_floor"],
+            "min_support_ratio": best["min_support_ratio"],
+            "answered_fixed": best["answered_fixed"],
+            "refused_edge": best["refused_edge"],
+        },
+    }
 
 
 # ── Phase 3: V4 comparison ──
@@ -218,14 +233,16 @@ def _compare_v4(records: list[dict]) -> list[dict]:
         v4r = v4_by_q.get(rec["question"])
         if v4r is None:
             continue
-        out.append({
-            "question": rec["question"],
-            "v4_status": v4r.get("final_status", ""),
-            "v6_status": rec["final_status"],
-            "v4_supported": v4r.get("verification_result", {}).get("supported", False),
-            "v6_supported": rec["verification_result"].get("supported", False),
-            "flipped": (v4r.get("final_status", "") != rec["final_status"]),
-        })
+        out.append(
+            {
+                "question": rec["question"],
+                "v4_status": v4r.get("final_status", ""),
+                "v6_status": rec["final_status"],
+                "v4_supported": v4r.get("verification_result", {}).get("supported", False),
+                "v6_supported": rec["verification_result"].get("supported", False),
+                "flipped": (v4r.get("final_status", "") != rec["final_status"]),
+            }
+        )
     return out
 
 
@@ -239,7 +256,8 @@ def _summarize(records: list[dict]) -> dict:
     refused_edge_ok = all(r["final_status"] == "refused" for r in edge)
     ratios = [
         r["verification_result"].get("grounding_meta", {}).get("support_ratio")
-        for r in records if r["verification_result"].get("grounding_meta")
+        for r in records
+        if r["verification_result"].get("grounding_meta")
     ]
     return {
         "total_cases": len(records),
@@ -257,16 +275,17 @@ def _summarize(records: list[dict]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="V6 grounding evaluation")
-    parser.add_argument("--full", action="store_true",
-                        help="Run all 100 golden questions (slow) + sweep")
+    parser.add_argument(
+        "--full", action="store_true", help="Run all 100 golden questions (slow) + sweep"
+    )
     args = parser.parse_args()
 
+    from src.eval.doc_registry import resolve_doc_filter
+    from src.generation.generator import generate_answer
     from src.infra.reranker import Reranker
     from src.retrieval.reranked_retriever import RerankedRetriever
-    from src.generation.generator import generate_answer
+    from src.workflow.grounding import CrossEncoderScorer, GroundingVerifier
     from src.workflow.verified_qa import VerifiedQA
-    from src.workflow.grounding import GroundingVerifier, CrossEncoderScorer
-    from src.eval.doc_registry import resolve_doc_filter
 
     ROBOROCK_FILTER = resolve_doc_filter("Roborock G10S")
 
@@ -289,8 +308,9 @@ def main() -> None:
         min_support_ratio=DEFAULT_RATIO,
         audit_citations=True,
     )
-    vqa = VerifiedQA(retriever=retriever, generator_fn=generate_answer,
-                     verifier_fn=verifier, max_retries=1)
+    vqa = VerifiedQA(
+        retriever=retriever, generator_fn=generate_answer, verifier_fn=verifier, max_retries=1
+    )
 
     cases = _load_cases(args.full)
     print(f"V6 grounding eval: {len(cases)} cases (full={args.full})")
@@ -299,27 +319,33 @@ def main() -> None:
     records = []
     try:
         for i, case in enumerate(cases, 1):
-            print(f"  [{i:3d}/{len(cases)}] START {case['question'][:40]}...",
-                  flush=True)
+            print(f"  [{i:3d}/{len(cases)}] START {case['question'][:40]}...", flush=True)
             try:
                 rec = _run_case(vqa, case, doc_filter=ROBOROCK_FILTER)
             except Exception as exc:  # one failing case must not kill the run
                 rec = {
-                    "question": case["question"], "label": case["label"],
+                    "question": case["question"],
+                    "label": case["label"],
                     "modality": case.get("modality", "text"),
                     "gold_pages": case.get("gold_pages", []),
-                    "answer": "", "final_status": "error",
-                    "verification_result": {}, "retry_count": 0,
-                    "trace": [], "retrieved_pages": [], "retrieval_hit": None,
-                    "retrieved_chunks": [], "time_s": 0.0,
+                    "answer": "",
+                    "final_status": "error",
+                    "verification_result": {},
+                    "retry_count": 0,
+                    "trace": [],
+                    "retrieved_pages": [],
+                    "retrieval_hit": None,
+                    "retrieved_chunks": [],
+                    "time_s": 0.0,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
-                print(f"  [{i:3d}/{len(cases)}] ERROR {type(exc).__name__}: {exc}",
-                      flush=True)
+                print(f"  [{i:3d}/{len(cases)}] ERROR {type(exc).__name__}: {exc}", flush=True)
             records.append(rec)
-            print(f"  [{i:3d}/{len(cases)}] {rec['final_status']:8s} "
-                  f"retry={rec['retry_count']} {case['question'][:40]}...",
-                  flush=True)
+            print(
+                f"  [{i:3d}/{len(cases)}] {rec['final_status']:8s} "
+                f"retry={rec['retry_count']} {case['question'][:40]}...",
+                flush=True,
+            )
     finally:
         retriever.close()
 
@@ -333,9 +359,11 @@ def main() -> None:
     with open(OUT_DIR / "sweep_report.json", "w", encoding="utf-8") as f:
         json.dump(sweep, f, ensure_ascii=False, indent=2)
     rec = sweep["recommended"]
-    print(f"Recommended: scorer_floor={rec['scorer_floor']} "
-          f"ratio={rec['min_support_ratio']} → answered_fixed={rec['answered_fixed']} "
-          f"refused_edge={rec['refused_edge']}")
+    print(
+        f"Recommended: scorer_floor={rec['scorer_floor']} "
+        f"ratio={rec['min_support_ratio']} → answered_fixed={rec['answered_fixed']} "
+        f"refused_edge={rec['refused_edge']}"
+    )
 
     # ── Phase 3: V4 comparison ──
     comparison = _compare_v4(records)
@@ -351,7 +379,7 @@ def main() -> None:
     with open(OUT_DIR / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
-    print(f"\n{'='*52}")
+    print(f"\n{'=' * 52}")
     for k, v in summary.items():
         print(f"  {k}: {v}")
     print(f"Saved: {OUT_DIR}")

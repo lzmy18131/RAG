@@ -2,7 +2,9 @@
 
 import base64
 from pathlib import Path
+
 from openai import OpenAI
+
 from src.config.settings import settings
 
 
@@ -53,7 +55,12 @@ class VLMClient:
 
         # Determine MIME type from extension
         ext = image_path.suffix.lower()
-        mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+        mime_map = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }
         mime_type = mime_map.get(ext, "image/png")
 
         client = self._ensure_client()
@@ -73,5 +80,8 @@ class VLMClient:
             ],
         )
         content = response.choices[0].message.content or ""
-        raw = {"model": response.model, "usage": response.usage.model_dump() if response.usage else None}
+        raw = {
+            "model": response.model,
+            "usage": response.usage.model_dump() if response.usage else None,
+        }
         return content, raw

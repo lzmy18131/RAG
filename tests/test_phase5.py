@@ -6,17 +6,17 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _v1_col() -> str:
     import os as _os
+
     _os.environ["MILVUS_URI"] = "http://localhost:19530"
-    from pymilvus import MilvusClient
     from dotenv import dotenv_values
+    from pymilvus import MilvusClient
+
     env = dotenv_values(str(PROJECT_ROOT / ".env"))
     c = MilvusClient(str(PROJECT_ROOT / env.get("MILVUS_URI", "milvus.db")))
     kw = sorted([x for x in c.list_collections() if x.startswith("v1_multimodal_kw_")])
@@ -30,12 +30,16 @@ def _v1_col() -> str:
 
 def test_reranker_loads_and_scores() -> None:
     from src.infra.reranker import Reranker
+
     r = Reranker()
     r.load()
-    scores = r.score("设备无法开机", [
-        "电池电量不足，请先靠上基座充电后再使用",
-        "设备屏幕亮度可以在设置中调节",
-    ])
+    scores = r.score(
+        "设备无法开机",
+        [
+            "电池电量不足，请先靠上基座充电后再使用",
+            "设备屏幕亮度可以在设置中调节",
+        ],
+    )
     assert len(scores) == 2
     assert scores[0] > scores[1], "Relevant doc should score higher"
 
@@ -45,10 +49,12 @@ def test_reranker_loads_and_scores() -> None:
 
 def test_v3_candidates_more_than_final() -> None:
     from src.retrieval.reranked_retriever import RerankedRetriever
+
     rr = RerankedRetriever(
         collection_name=_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
-        candidate_top_k=20, final_top_k=5,
+        candidate_top_k=20,
+        final_top_k=5,
     )
     results = rr.search("设备无法开机怎么办", mode="reranked")
     rr.close()
@@ -57,10 +63,12 @@ def test_v3_candidates_more_than_final() -> None:
 
 def test_v3_has_rerank_score_and_rank() -> None:
     from src.retrieval.reranked_retriever import RerankedRetriever
+
     rr = RerankedRetriever(
         collection_name=_v1_col(),
         bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
-        candidate_top_k=20, final_top_k=5,
+        candidate_top_k=20,
+        final_top_k=5,
     )
     results = rr.search("设备无法开机怎么办", mode="reranked")
     rr.close()
@@ -76,7 +84,8 @@ def test_v3_rankings_differ_from_v2() -> None:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     changes = sum(
-        1 for v2, v3 in zip(data["v2_results"], data["v3_results"])
+        1
+        for v2, v3 in zip(data["v2_results"], data["v3_results"], strict=False)
         if v2["pages"][:3] != v3["pages"][:3]
     )
     assert changes > 0, "Reranker should change rankings for at least some questions"
@@ -95,20 +104,23 @@ def test_v2_results_not_overwritten() -> None:
 
 def test_reranker_unavailable_fallback() -> None:
     """If reranker model path is invalid, should return results with degrade_reason."""
-    from src.retrieval.reranked_retriever import RerankedRetriever
     import src.infra.reranker as rk_mod
+    from src.retrieval.reranked_retriever import RerankedRetriever
 
     # Monkey-patch Reranker.load to simulate failure
     orig_load = rk_mod.Reranker.load
+
     def _fail_load(self):
         raise RuntimeError("simulated load failure")
+
     rk_mod.Reranker.load = _fail_load
 
     try:
         rr = RerankedRetriever(
             collection_name=_v1_col(),
             bm25_index_path=str(PROJECT_ROOT / "storage" / "bm25"),
-            candidate_top_k=20, final_top_k=5,
+            candidate_top_k=20,
+            final_top_k=5,
         )
         results = rr.search("设备无法开机怎么办", mode="reranked")
         rr.close()
@@ -125,8 +137,12 @@ def test_reranker_unavailable_fallback() -> None:
 
 def test_v3_output_files_exist() -> None:
     out = PROJECT_ROOT / "storage" / "runs" / "v3_rerank"
-    for name in ["v3_results.json", "v2_v3_comparison.json", "metadata.json",
-                 "ranking_changes.json"]:
+    for name in [
+        "v3_results.json",
+        "v2_v3_comparison.json",
+        "metadata.json",
+        "ranking_changes.json",
+    ]:
         assert (out / name).exists(), f"Missing: {name}"
 
 
@@ -143,8 +159,7 @@ def test_v3_results_have_full_chunk_details() -> None:
         assert "original_hybrid_ranks" in r
         assert "final_results" in r
         for chunk in r["final_results"]:
-            for field in ["chunk_id", "page_number", "content_type",
-                          "rerank_score", "rerank_rank"]:
+            for field in ["chunk_id", "page_number", "content_type", "rerank_score", "rerank_rank"]:
                 assert field in chunk, f"final_results missing {field}"
 
 
@@ -159,8 +174,14 @@ def test_ranking_changes_have_details() -> None:
         assert "changes" in entry
         if entry["changes"]:
             c = entry["changes"][0]
-            for field in ["chunk_id", "page_number", "original_hybrid_rank",
-                          "rerank_rank", "fusion_score", "rerank_score"]:
+            for field in [
+                "chunk_id",
+                "page_number",
+                "original_hybrid_rank",
+                "rerank_rank",
+                "fusion_score",
+                "rerank_score",
+            ]:
                 assert field in c, f"change missing {field}"
 
 

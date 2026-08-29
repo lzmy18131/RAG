@@ -2,3 +2,18 @@
 # Exclude scripts from test collection — smoke_test.py has API-calling
 # test_* functions meant for direct invocation only.
 norecursedirs = ["scripts"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "frontend", "storage", "data/raw_docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# E501: 行宽由 ruff format 结构性保证（仅剩文档/URL）；
+# E402: scripts/tests 的 sys.path 引导模式（H5 打包改造后消除，见 roadmap）
+ignore = ["B008", "UP007", "BLE001", "E501", "E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
