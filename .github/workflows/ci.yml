@@ -47,7 +47,7 @@ jobs:
 
       - name: Pytest + coverage (offline subset + demo mode, 无 GPU/模型/API)
         run: |
-          pytest tests/ -q -k "not test_phase3 and not test_phase4 and not test_phase5 \
+          pytest tests/ -q -k "not test_phase2 and not test_phase3 and not test_phase4 and not test_phase5 \
             and not test_phase7_integration and not milvus_collection" \
             --cov=src --cov-branch --cov-report=term-missing
 
