@@ -1,20 +1,14 @@
-# GitHub Metadata Update（手工步骤）
+# GitHub Metadata Update（已应用记录）
 
-> gh CLI 本环境不可用 → 手工更新；推荐值见下。
+> 已通过 GitHub REST API 应用（2026-08-29，与 commit `79bf853` 同批）。以下为实际生效值；如需修改按文末手工步骤在 Web 更新。
 
-## 推荐 Description（≤ ~120 字符）
-
-```text
-Production-style multimodal RAG system with hybrid retrieval, reranking, grounding, citation validation, evals and semantic cache.
-```
-
-或更短：
+## 实际生效 Description
 
 ```text
-Multimodal RAG system with hybrid retrieval, reranking, grounding, evals, semantic cache and production engineering.
+Production-style multimodal RAG system with hybrid retrieval, reranking, grounding, citation validation, evaluation and semantic cache.
 ```
 
-## 推荐 Topics（12 个，全部真实使用）
+## 实际生效 Topics（12 个，全部真实使用）
 
 ```text
 rag
@@ -33,10 +27,10 @@ python
 
 > 不加 `multi-agent`（本项目以 RAG 深度工程为核心，不是 Agent 编排）。
 
-## 手工步骤（GitHub Web）
+## 手工更新步骤（GitHub Web，如需修改）
 
 1. https://github.com/lzmy18131/RAG → Settings → General
-2. Description 填入推荐文案；Topics 逐个添加。
+2. Description 填入文案；Topics 逐个添加。
 3. 保存后核对 About 侧栏。
 
 ## Social Preview
