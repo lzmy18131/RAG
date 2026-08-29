@@ -1,0 +1,17 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset_hash": "253762c4f90e1e8c",
+  "total": 100,
+  "calibration_size": 20,
+  "test_size": 80,
+  "schema_fields": [
+    "question",
+    "question_type",
+    "difficulty",
+    "modality_required",
+    "gold_pages",
+    "reference_answer",
+    "source_document"
+  ],
+  "note": "calibration/test split 用于阈值校准与最终评估分离（防 leakage）；小规模校准集为数据量限制下的折中，见 docs/evaluation.md"
+}

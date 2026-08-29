@@ -27,7 +27,7 @@ def client(tmp_path):
         patch("src.api.deps.get_latest_v1_collection") as mock_col,
         patch("src.api.deps.get_incremental_indexer") as mock_idx,
         patch("src.api.deps.get_settings") as mock_set,
-        patch("src.api.routes.get_settings") as mock_route_set,
+        patch("src.api.routes.get_settings"),
         patch("src.api.deps.get_embedder"),
     ):
         mock_col.return_value = "test_collection"

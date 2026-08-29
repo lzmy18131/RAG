@@ -41,3 +41,6 @@ test-results/
 # 操作系统
 .DS_Store
 Thumbs.db
+
+# 实验注册目录（Phase 2）
+runs/
