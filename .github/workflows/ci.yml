@@ -129,9 +129,9 @@ jobs:
         run: docker build -t rag-frontend:ci -f frontend/Dockerfile ./frontend
 
   full-eval:
-    name: Full retrieval eval (workflow_dispatch / manual)
+    name: Full retrieval eval (workflow_dispatch only — 需 MILVUS_URI + 模型)
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
