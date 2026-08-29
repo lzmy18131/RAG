@@ -1,0 +1,36 @@
+# -RAG- docker-compose（CPU profile 可启动；Demo 模式无需 API key）
+# Milvus Lite 单进程：仅 1 个 backend 副本
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      MILVUS_URI: /data/milvus.db
+      LLM_API_KEY: ${LLM_API_KEY:-replace-me}
+      VLM_API_KEY: ${VLM_API_KEY:-replace-me}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-large}
+      MODEL_DEVICE: ${MODEL_DEVICE:-cpu}
+    volumes:
+      - rag-data:/app/storage
+      - rag-models:/root/.cache/huggingface   # 模型权重缓存（首次下载）
+      - rag-runs:/app/runs
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  rag-data:
+  rag-models:
+  rag-runs:

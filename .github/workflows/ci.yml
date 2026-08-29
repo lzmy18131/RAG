@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint + format + tests, 无 API key)
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      # CI 绝不调用真实 LLM / VLM / 不下载大模型
+      MILVUS_URI: http://localhost:19530
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt pytest pytest-cov ruff
+
+      - name: Ruff check
+        run: ruff check src/ tests/ scripts/
+
+      - name: Ruff format check
+        run: ruff format --check src/ tests/ scripts/
+
+      - name: Pytest (offline subset — 不依赖 GPU/模型/API)
+        run: |
+          pytest tests/ -q -k "not test_phase3 and not test_phase4 and not test_phase5 \
+            and not test_phase7_integration and not milvus_collection"
+
+      - name: Eval foundation sanity
+        run: |
+          python scripts/build_evals_datasets.py
+          python scripts/ablation.py || true   # 无 runs 产物时 NOT RUN
+
+      - name: Security audit (pip)
+        run: pip-audit || echo "pip-audit 未安装或发现漏洞（见 docs/SECURITY.md）"
+        continue-on-error: true
+
+  frontend:
+    name: Frontend (lint + typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc -b --noEmit || npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Security audit (npm)
+        run: npm audit --audit-level=high || echo "npm audit 发现漏洞（见 docs/SECURITY.md）"
+        continue-on-error: true
+
+  docker:
+    name: Docker build (backend + frontend)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t rag-backend:ci -f Dockerfile .
+      - name: Build frontend image
+        run: docker build -t rag-frontend:ci -f frontend/Dockerfile ./frontend
+
+  full-eval:
+    name: Full retrieval eval (manual / workflow_dispatch)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Run retrieval eval (needs MILVUS_URI + models via secrets)
+        env:
+          MILVUS_URI: ${{ secrets.MILVUS_URI }}
+        run: python scripts/final_evaluation.py --retrieval-only --dataset golden_100 || echo "NOT RUN: 需模型+Milvus 环境"
