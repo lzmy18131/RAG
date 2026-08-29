@@ -4,7 +4,7 @@
 
 ## 当前 commit
 
-- git commit：`5d921af`（Final Pass 交付 HEAD；`cc7bb87` 为 Demo 全链路交付，`b66936a` 为基线）
+- git commit：`df7ebdb`（Final Pass 交付 HEAD；`f12eb75` 修复 E2E 冷启动与 launcher，`cc7bb87` 为 Demo 全链路交付，`b66936a` 为基线）
 - 分支：main · origin = https://github.com/lzmy18131/RAG
 
 ## 当前 Verified Run
@@ -42,15 +42,14 @@
 |---|---|
 | Vitest+RTL | **7 passed** |
 | lint / typecheck / build | ✅ / ✅ / ✅ |
-| Playwright E2E（Demo Mode） | **7/7 passed**（本地实测） |
-| CI E2E | 见下方 CI 行 |
+| Playwright E2E（Demo Mode） | **7/7 passed**（本地实测 + CI 实测，全新缓存） |
 
 ## CI / Docker
 
 | 项 | 值 |
 |---|---|
-| GitHub Actions（5d921af） | 见最终验证表（backend/frontend/e2e/docker jobs 结论） |
-| Docker 本地 | NOT RUN（本环境无 Docker） |
+| GitHub Actions（df7ebdb） | **全部 green**：Backend / Frontend / E2E / Docker build；full-eval 仅 workflow_dispatch（跳过） |
+| Docker 本地 | NOT RUN（本环境无 Docker，Docker 镜像在 CI 构建验证） |
 
 ## 项目核心（当前 commit）
 
