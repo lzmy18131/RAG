@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 运行时数据（模型/索引/缓存/实验产物）
+storage/*.db
+storage/bm25/
+storage/manifests/
+storage/runs/
+storage/semantic_cache.db
+milvus.db
+.cache/
+HF_HOME/
+
+# 模型权重缓存
+models/
+*.safetensors
+*.bin
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+
+# 测试产物
+.coverage
+htmlcov/
+playwright-report/
+test-results/
+
+# 操作系统
+.DS_Store
+Thumbs.db
