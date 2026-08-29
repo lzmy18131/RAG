@@ -90,19 +90,31 @@ def _mark_degrade(results: list[dict], channel: str, reason: str) -> list[dict]:
 
 
 class HybridRetriever:
-    """Retriever supporting dense, bm25, and hybrid (RRF) modes."""
+    """Retriever supporting dense, bm25, and hybrid (RRF) modes.
+
+    检索参数（rrf_k / dense_top_k / bm25_top_k）统一来自 settings
+    （audit R2），无配置时回退默认值。
+    """
 
     def __init__(
         self,
         collection_name: str = "v1_multimodal_kw",
         bm25_index_path: str | None = None,
         embedder=None,
+        rrf_k: int | None = None,
+        dense_top_k: int | None = None,
+        bm25_top_k: int | None = None,
     ):
+        from src.config.settings import settings as _s
+
         self.collection_name = collection_name
         self._dense: DenseRetriever | None = None
         self._bm25: BM25Retriever | None = None
         self._bm25_path = bm25_index_path
         self._embedder = embedder  # shared BGE-M3 (see DenseRetriever)
+        self.rrf_k = rrf_k if rrf_k is not None else _s.retrieval_rrf_k
+        self.dense_top_k = dense_top_k if dense_top_k is not None else _s.retrieval_dense_top_k
+        self.bm25_top_k = bm25_top_k if bm25_top_k is not None else _s.retrieval_bm25_top_k
 
     def _ensure_dense(self) -> DenseRetriever:
         if self._dense is None:
@@ -140,7 +152,9 @@ class HybridRetriever:
 
         # Dense
         try:
-            dense_results = self._ensure_dense().search(query, top_k=20, doc_filter=doc_filter)
+            dense_results = self._ensure_dense().search(
+                query, top_k=self.dense_top_k, doc_filter=doc_filter
+            )
             dense_ok = True
         except Exception:
             dense_results = []
@@ -150,7 +164,9 @@ class HybridRetriever:
         try:
             bm25_retriever = self._ensure_bm25()
             if bm25_retriever.is_loaded:
-                bm25_results = bm25_retriever.search(query, top_k=20, doc_filter=doc_filter)
+                bm25_results = bm25_retriever.search(
+                    query, top_k=self.bm25_top_k, doc_filter=doc_filter
+                )
                 bm25_ok = True
             else:
                 bm25_results = []
@@ -183,7 +199,7 @@ class HybridRetriever:
         if mode == "hybrid":
             # Both available
             if dense_ok and bm25_ok:
-                return _rrf_fusion(dense_results, bm25_results, top_k=top_k)
+                return _rrf_fusion(dense_results, bm25_results, k=self.rrf_k, top_k=top_k)
 
             # Degrade: BM25 unavailable, fall back to Dense
             if dense_ok and not bm25_ok:

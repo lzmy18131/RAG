@@ -4,25 +4,17 @@ from __future__ import annotations
 
 from src.infra.llm_client import LLMClient
 
-SYSTEM_PROMPT = """你是一个智能硬件维保助手。请根据提供的说明书内容回答用户问题。
-
-规则：
-1. 只能根据提供的上下文回答，不要使用你自己的知识。
-2. 如果上下文中没有相关信息，请明确说"根据现有说明书内容无法回答此问题"，不要编造。
-3. 回答时请引用来源，格式为 [来源: 文件名, 第X页]。
-4. 回答应简洁、准确、有帮助。
-5. 如果多个来源提供相同信息，请合并引用。
-"""
-
 
 def _build_context(chunks: list[dict]) -> str:
-    """Build context string from retrieved chunks."""
+    """Build context string from retrieved chunks（内容包装为不可信，audit R8）。"""
+    from src.prompts import wrap_untrusted
+
     parts: list[str] = []
     for i, c in enumerate(chunks, 1):
         source = c.get("source_file", "unknown")
         page = c.get("page_number", "?")
         content = c.get("content", "")
-        parts.append(f"[{i}] 来源: {source}, 第{page}页\n{content}")
+        parts.append(f"[{i}] 来源: {source}, 第{page}页\n{wrap_untrusted(content)}")
     return "\n\n".join(parts)
 
 
@@ -48,10 +40,12 @@ def generate_answer(
     context = _build_context(retrieved_chunks)
     user_message = f"上下文：\n\n{context}\n\n问题：{question}"
 
+    from src.prompts import registry
+
     client = LLMClient()
     response_text, raw = client.chat(
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": registry.render("generation")},
             {"role": "user", "content": user_message},
         ],
     )

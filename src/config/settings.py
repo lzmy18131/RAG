@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     data_dir: str = "data"
     storage_dir: str = "storage"
 
+    # ── Retrieval 配置（audit R2：消除 magic number，单一来源）──
+    retrieval_rrf_k: int = 60  # RRF 融合常数
+    retrieval_dense_top_k: int = 20  # dense 粗筛候选数
+    retrieval_bm25_top_k: int = 20  # BM25 粗筛候选数
+    retrieval_rerank_candidate_k: int = 20  # Reranker 输入候选数
+    retrieval_final_top_k: int = 5  # 最终返回条数
+
     # ── V6 grounding verifier ──
     verifier_mode: str = "grounding"  # "grounding" (deterministic) | "llm" (V4 judge)
     grounding_scorer: str = "reranker"  # "reranker" (cross-encoder) | "cosine" (BGE-M3)
