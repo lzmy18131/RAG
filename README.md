@@ -301,6 +301,25 @@ npm run dev
 
 ---
 
+## 八·五、工程化升级（2026-08）
+
+本项目已完成 **Production-style RAG Engineering 升级**，在保留 V0–V9 全部实验资产的前提下补齐工程闭环：
+
+- **Evaluation Foundation**：统一检索指标（Recall@K/MRR/**nDCG@K**）、确定性引用校验、失败分类（12 类）、Bootstrap CI + McNemar、Experiment Registry（`runs/`）、数据集版本化 + calibration/test split、分阶段延迟（p50/p95）。
+- **Backend Production**：request_id、统一错误 envelope、`/health/live|ready`、`/version`（semver）、Prometheus `/metrics`、领域异常、应用工厂。
+- **RAG Reliability**：RetrievedChunk 统一契约、检索参数配置化（消除 magic number）、Grounding 阈值校准、Prompt Registry + 注入防御、语义缓存 **corpus_version 失效**。
+- **DevOps**：CI（无 API key 全绿）、Docker + docker-compose、pre-commit、Makefile、`docs/DATA_LICENSE.md`（商业说明书不随仓库分发）。
+
+> ⚠️ **指标真实性**：README 上文 V0–V4 指标为原仓库历史数据；重构后需在有 GPU/模型的环境**重跑**并注册 Experiment Run（`runs/`）后方可声称有效。本环境离线测试 **231 passed / 0 failed**。
+
+详细文档：
+[ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) · [RESUME_METRICS.md](RESUME_METRICS.md) ·
+[TECHNICAL_TRADEOFFS.md](TECHNICAL_TRADEOFFS.md) ·
+[docs/ENGINEERING_AUDIT.md](docs/ENGINEERING_AUDIT.md) · [docs/ENGINEERING_ROADMAP.md](docs/ENGINEERING_ROADMAP.md) ·
+[docs/evaluation.md](docs/evaluation.md) · [docs/DATA_LICENSE.md](docs/DATA_LICENSE.md)
+
+---
+
 ## 九、致谢
 
 - [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) — Embedding 模型
