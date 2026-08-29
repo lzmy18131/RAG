@@ -62,7 +62,9 @@ async def ingest_document_v1(file: UploadFile = File(...)):
     """
     settings = get_settings()
     if settings.demo_mode:
-        raise HTTPException(400, "DEMO 模式使用内置合成语料，不支持上传；请关闭 DEMO_MODE 后使用真实索引")
+        raise HTTPException(
+            400, "DEMO 模式使用内置合成语料，不支持上传；请关闭 DEMO_MODE 后使用真实索引"
+        )
 
     if not file.filename:
         raise HTTPException(400, "No filename provided")

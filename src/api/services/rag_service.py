@@ -111,8 +111,12 @@ class RAGService:
         """非流式 v1 query：跑完整管线，返回 QueryResult。"""
         result: QueryResult | None = None
         for _stage, _detail, _ms in self.run_stages(
-            question, top_k=top_k, document_ids=document_ids,
-            use_cache=use_cache, debug=debug, request_id=request_id,
+            question,
+            top_k=top_k,
+            document_ids=document_ids,
+            use_cache=use_cache,
+            debug=debug,
+            request_id=request_id,
         ):
             result = _detail.get("result") if _detail.get("result") is not None else result
         assert result is not None
@@ -163,7 +167,11 @@ class RAGService:
 
         if cached_raw is not None:
             result.latency = {"total_ms": 0, "cache_hit": True, **stages}
-            yield "cache_lookup", {"cache_hit": True, "source": source, "result": result}, stages["cache_lookup_ms"]
+            yield (
+                "cache_lookup",
+                {"cache_hit": True, "source": source, "result": result},
+                stages["cache_lookup_ms"],
+            )
             yield "done", {"result": result}, 0
             return
 

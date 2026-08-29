@@ -23,15 +23,33 @@ def _demo_env(tmp_path, monkeypatch):
     # setup 前先清 lru_cache：确保 demo settings 生效（否则拿到上一用例的非 demo 单例 → 真加载 BGE）
     from src.api import deps
 
-    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
-                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
-                 "get_incremental_indexer"):
+    for name in (
+        "get_settings",
+        "get_embedder",
+        "get_milvus_client",
+        "get_latest_v1_collection",
+        "get_bm25",
+        "get_reranker",
+        "get_retriever",
+        "get_vqa",
+        "get_semantic_cache",
+        "get_incremental_indexer",
+    ):
         getattr(deps, name).cache_clear()
     yield
     Settings.model_config["env_file"] = ".env"
-    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
-                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
-                 "get_incremental_indexer"):
+    for name in (
+        "get_settings",
+        "get_embedder",
+        "get_milvus_client",
+        "get_latest_v1_collection",
+        "get_bm25",
+        "get_reranker",
+        "get_retriever",
+        "get_vqa",
+        "get_semantic_cache",
+        "get_incremental_indexer",
+    ):
         getattr(deps, name).cache_clear()
 
 
@@ -102,9 +120,7 @@ class TestQueryStreamV1:
         return out
 
     def test_stream_stage_order(self, client):
-        r = client.post(
-            "/api/v1/query/stream", json={"query": "故障码 E01 是什么意思"}
-        )
+        r = client.post("/api/v1/query/stream", json={"query": "故障码 E01 是什么意思"})
         assert r.status_code == 200
         events = self._events(r.text)
         types = [e["type"] for e in events]
@@ -152,7 +168,9 @@ class TestCancellation:
 
         qmod._build_service = _fake_build
         try:
-            with client.stream("POST", "/api/v1/query/stream", json={"query": "故障码 E01"}) as _resp:
+            with client.stream(
+                "POST", "/api/v1/query/stream", json={"query": "故障码 E01"}
+            ) as _resp:
                 # 客户端立即断开 → 生成器被取消
                 pass
         finally:

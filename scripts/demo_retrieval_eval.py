@@ -88,7 +88,9 @@ def main() -> int:
     # ── 语义缓存 benchmark（重复/近似查询命中率 + 假阳性） ──
     from src.infra.semantic_cache import SemanticCache
 
-    cache = SemanticCache(embedder=embedder, db_path=str(PROJECT_ROOT / "storage" / "demo_cache.db"), threshold=0.9)
+    cache = SemanticCache(
+        embedder=embedder, db_path=str(PROJECT_ROOT / "storage" / "demo_cache.db"), threshold=0.9
+    )
     exact_hits, semantic_hits, misses = 0, 0, 0
     for item in GOLDEN_QUERIES:
         cache.put(item["query"], {"answer": "demo", "status": "answered"})
@@ -139,8 +141,10 @@ def main() -> int:
     (run.dir / "report.md").write_text(report, encoding="utf-8")
 
     print(f"run registered: {run.dir}")
-    print(f"Recall@5={agg.get('recall@5')} MRR={agg.get('mrr')} nDCG@5={agg.get('ndcg@5')} "
-          f"cache_exact={exact_hits} false_hit_rate={metrics['cache']['false_hit_rate']}")
+    print(
+        f"Recall@5={agg.get('recall@5')} MRR={agg.get('mrr')} nDCG@5={agg.get('ndcg@5')} "
+        f"cache_exact={exact_hits} false_hit_rate={metrics['cache']['false_hit_rate']}"
+    )
     return 0
 
 
@@ -148,7 +152,9 @@ def _git_commit() -> str:
     import subprocess
 
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5)
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
+        )
         return out.stdout.strip() or "no-git"
     except Exception:  # noqa: BLE001
         return "no-git"

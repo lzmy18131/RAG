@@ -92,8 +92,12 @@ class TestHybridRetriever:
     def test_rrf_k_effect(self, env):
         """RRF k 越小，两路都靠前的项优势越大（排名权重更高）。"""
         embedder, milvus, bm25 = env
-        hr_small = HybridRetriever(collection_name="demo", embedder=embedder, bm25=bm25, client=milvus, rrf_k=5)
-        hr_large = HybridRetriever(collection_name="demo", embedder=embedder, bm25=bm25, client=milvus, rrf_k=100)
+        hr_small = HybridRetriever(
+            collection_name="demo", embedder=embedder, bm25=bm25, client=milvus, rrf_k=5
+        )
+        hr_large = HybridRetriever(
+            collection_name="demo", embedder=embedder, bm25=bm25, client=milvus, rrf_k=100
+        )
         r_small = hr_small.search("故障码 E01", top_k=5)
         r_large = hr_large.search("故障码 E01", top_k=5)
         # 两种 k 都返回有效排序

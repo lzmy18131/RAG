@@ -26,8 +26,8 @@ lint: ## ruff check
 format: ## ruff format --check
 	$(PYTHON) -m ruff format --check src/ tests/ scripts/
 
-typecheck: ## 类型检查（当前覆盖核心模块；渐进收紧见 docs/ENGINEERING_ROADMAP.md）
-	$(PYTHON) -m mypy src --ignore-missing-imports --follow-imports=skip 2>/dev/null || echo "typecheck: 见 roadmap Phase 2（pyright/mypy 渐进接入）"
+typecheck: ## 类型检查（mypy 真 gate：有错误即失败）
+	$(PYTHON) -m mypy src
 
 test: ## 全部测试（离线子集）
 	PYTHONPATH= $(PYTHON) -m pytest tests/ -k "not test_phase3 and not test_phase4 and not test_phase5 and not test_phase7_integration and not milvus_collection" -q
@@ -50,8 +50,8 @@ eval-full: ## 完整评估（需 API key + 模型）
 eval-online: ## 在线评估（需 RUN_ONLINE_EVALS=true + API key）
 	RUN_ONLINE_EVALS=true PYTHONPATH= $(PYTHON) scripts/final_evaluation.py
 
-benchmark: ## 性能基准（reranker/cache/concurrency）
-	$(PYTHON) scripts/benchmark_reranker.py 2>/dev/null || echo "benchmark 脚本见 benchmark/（Phase 6）"
+benchmark: ## Demo 离线检索基准（CI 回归）
+	$(PYTHON) scripts/demo_retrieval_eval.py
 
 docker-up: ## Docker 启动
 	docker compose up --build

@@ -36,15 +36,33 @@ def _demo_env(tmp_path, monkeypatch):
     Settings.model_config["env_file"] = None  # 不读 .env
     from src.api import deps
 
-    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
-                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
-                 "get_incremental_indexer"):
+    for name in (
+        "get_settings",
+        "get_embedder",
+        "get_milvus_client",
+        "get_latest_v1_collection",
+        "get_bm25",
+        "get_reranker",
+        "get_retriever",
+        "get_vqa",
+        "get_semantic_cache",
+        "get_incremental_indexer",
+    ):
         getattr(deps, name).cache_clear()
     yield
     Settings.model_config["env_file"] = ".env"
-    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
-                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
-                 "get_incremental_indexer"):
+    for name in (
+        "get_settings",
+        "get_embedder",
+        "get_milvus_client",
+        "get_latest_v1_collection",
+        "get_bm25",
+        "get_reranker",
+        "get_retriever",
+        "get_vqa",
+        "get_semantic_cache",
+        "get_incremental_indexer",
+    ):
         getattr(deps, name).cache_clear()
 
 
@@ -65,7 +83,9 @@ class TestDemoComponents:
 
     def test_fake_reranker_overlap_semantics(self):
         r = FakeReranker()
-        scores = r.score("故障码 E01 激光雷达", ["故障码 E01 表示激光雷达被遮挡", "充电说明：使用电源适配器"])
+        scores = r.score(
+            "故障码 E01 激光雷达", ["故障码 E01 表示激光雷达被遮挡", "充电说明：使用电源适配器"]
+        )
         assert scores[0] > scores[1]
         assert scores[1] == FakeReranker.UNRELATED_FLOOR  # 无关对 → 低基础分（< 相关性阈值）
         assert all(0.0 <= x <= 1.0 for x in scores)
@@ -78,7 +98,14 @@ class TestDemoComponents:
             collection_name="demo",
             data=[e.encode("故障码 E01")],
             limit=3,
-            output_fields=["chunk_id", "content", "source_file", "page_number", "content_type", "document_id"],
+            output_fields=[
+                "chunk_id",
+                "content",
+                "source_file",
+                "page_number",
+                "content_type",
+                "document_id",
+            ],
         )
         assert hits[0][0]["entity"]["chunk_id"] in ("demo-0003", "demo-0004")  # E01 相关
         # filter: source_file 精确匹配（V8 doc_filter 语义）
@@ -94,7 +121,18 @@ class TestDemoComponents:
 
     def test_demo_corpus_covers_key_topics(self):
         texts = " ".join(c["content"] for c in DEMO_CORPUS)
-        for kw in ("故障码", "E01", "E07", "PTC", "边刷", "尘盒", "HEPA", "悬崖传感器", "配网", "充电"):
+        for kw in (
+            "故障码",
+            "E01",
+            "E07",
+            "PTC",
+            "边刷",
+            "尘盒",
+            "HEPA",
+            "悬崖传感器",
+            "配网",
+            "充电",
+        ):
             assert kw in texts, f"demo corpus missing topic: {kw}"
         assert len(DEMO_CORPUS) >= 20
 

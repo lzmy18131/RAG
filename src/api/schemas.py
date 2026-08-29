@@ -89,8 +89,16 @@ class SSEStage(BaseModel):
     citation_check / usage / done / error。"""
 
     type: Literal[
-        "start", "retrieving", "reranking", "generating", "grounding",
-        "citation_check", "usage", "done", "error", "token",
+        "start",
+        "retrieving",
+        "reranking",
+        "generating",
+        "grounding",
+        "citation_check",
+        "usage",
+        "done",
+        "error",
+        "token",
     ]
     stage: str | None = None
     detail: dict[str, Any] = Field(default_factory=dict)

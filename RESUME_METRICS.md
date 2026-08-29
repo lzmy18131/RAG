@@ -1,42 +1,42 @@
-# RESUME_METRICS（可写入简历的真实量化指标）
+# RESUME_METRICS（当前 commit 真实指标）
 
-> 仅收录本环境**真实执行**的数字；未能运行的标注 NOT RUN（不得编造）。
+> ⚠️ 最新数字以 **docs/CURRENT_RESUME_METRICS.md** 为准（记录 commit 与 run_id）。
+> 本文件保留为入口摘要；历史 V0-V9 数字见 README「Historical Results」（NOT VERIFIED AFTER REFACTOR）。
 
-## 工程量化（本环境实测）
+## 当前 HEAD 实测（Final Pass）
 
-| 指标 | 数值 | 说明 |
-|---|---|---|
-| 后端测试 | **231 passed / 0 failed**（离线子集） | 42 个需 GPU/模型的用例 deselected |
-| 修复测试真 bug | 6 → 0 | fixture 补丁生命周期、V5 版本断言、multipart 缺失 |
-| P0 安全问题修复 | 4 个 | 路径穿越 / 坏文件崩溃 / manifest 原子写 / 缓存陈旧 |
-| ruff | check + format 全绿（104 文件） | E501/E402 决策见 pyproject |
-| 前端 | build + lint ✓ | Vite 8 + oxlint |
-| 评测数据集 | golden_v1(100) + extended_v1(123) 版本化 | dataset_hash + calibration/test split |
-| 新增测试 | **74 个**（本轮升级） | eval foundation + API baseline + metrics 等 |
+| 指标 | 数值 |
+|---|---|
+| git commit | `cc7bb87`（Final Pass 交付 HEAD） |
+| Backend tests（离线子集） | **273 passed** |
+| Coverage（branch） | **77%**（gate=70；基线 68%） |
+| mypy | **0 errors**（54 files） |
+| ruff | ✅ check + format |
+| Frontend Vitest / Playwright E2E | **7 / 7**（Demo Mode） |
+| Demo retrieval Recall@5 / MRR / nDCG@5 | **0.9167 / 0.9167 / 0.8792**（run demo_retrieval_v1） |
+| Cache exact hits / false-hit | **12/12 / 0.0** |
+| 关键模块覆盖 | retrieval 86~89% · grounding 92% · cache 94% · gateway 84% |
+| Docker 本地 | NOT RUN（无 Docker） |
+| 真实模型 benchmark（BGE/Milvus/LLM） | NOT RUN（需 GPU + 模型权重 + API key） |
 
-## 能力清单（代码实现 + 测试支撑）
+## 能力清单（代码 + 测试支撑）
 
-- **Retrieval Evaluation**：Recall@K / HitRate@K / Precision@K / MRR / **nDCG@K**（K∈{1,3,5,10,20}）统一模块
-- **Citation Validation**：确定性三态校验（页面/来源/证据支撑），8 个测试
-- **RAG Failure Taxonomy**：12 类确定性归因 + failures.jsonl
-- **Statistical Evaluation**：Bootstrap 95% CI + McNemar 配对检验
-- **Experiment Registry**：runs/\<run_id\>/{metadata,config,metrics,failures}，git_commit/dataset_hash 入 metadata
-- **Grounding Threshold Calibration**：threshold→precision/recall/F1/abstain/coverage 扫描
-- **Latency 分阶段**：StageTimer p50/p90/p95/max
-- **Prompt Registry**：generation/verification 收拢 + 变量契约
-- **Prompt Injection Defense**：`<untrusted>` 边界 + 系统级指令
-- **Semantic Cache 可靠性**：corpus_version 失效（知识库更新后缓存自动失效）
-- **API Production**：request_id / 错误 envelope / health(live/ready) / version(semver) / Prometheus /metrics
-- **DevOps**：CI（无 key 全绿）、Docker multi-stage、pre-commit、Makefile、DATA_LICENSE
+- Hybrid Retrieval（BGE-M3 + BM25 + RRF + Cross-Encoder Rerank，参数配置化）
+- 确定性 Grounding + Citation Validator + Cite-or-Abstain（relevance ≠ entailment 诚实声明）
+- Semantic Cache（corpus_version + schema_version 防 stale；false-hit 度量）
+- Incremental Index（SHA256 manifest 原子写；Milvus Lite 无事务限制文档化）
+- LLM Gateway（retry / circuit breaker / failover）
+- v1 API + SSE streaming + cancellation（CancelledError 不包装 500）
+- Evaluation：统一指标 / Bootstrap CI / McNemar / 12 类 Failure Taxonomy / Experiment Registry
+- Observability：request_id / Prometheus /metrics / /health/ready 真实 503 / /version app+pipeline 分离
+- Demo Mode：无 API key / GPU / 模型下载完整体验（合成语料 + 确定性模型，复用真实管线代码）
+- CI：mypy / coverage 真 gate；E2E（Playwright Demo）；Docker build
 
 ## NOT RUN（如实标注）
 
-| 指标 | 原因 |
+| 项 | 原因 |
 |---|---|
-| Hybrid vs Dense MRR 提升 % | 需 BGE-M3/Reranker 权重 + Milvus 集合（本环境无 GPU/模型缓存） |
-| V0–V4 全量 RAGAS 指标重跑 | storage 产物含他机绝对路径不可复现 |
-| 覆盖率 % | cov gate 未建立（ROADMAP） |
-| Docker 启动验证 | 本环境无 Docker |
-
-> 建议：在有 GPU 的环境安装模型后运行 `scripts/final_evaluation.py --dataset golden_100`，
-> 用 `src/eval/registry.py` 注册 run，再更新本表（RESUME_METRICS 只收真实数字）。
+| RAGAS full（golden_100） | 需真实 LLM API |
+| Retrieval eval（BGE/Milvus） | 需模型权重 + Milvus 集合 |
+| Docker compose 启动 | 本环境无 Docker |
+| 在线 evals | 需 API key（RUN_ONLINE_EVALS 门控） |

@@ -119,7 +119,10 @@ async def query_stream_v1(req: QueryRequest, request: Request):
                     {
                         "type": "stage",
                         "stage": "cache_lookup",
-                        "detail": {"cache_hit": detail.get("cache_hit", False), "source": detail.get("source")},
+                        "detail": {
+                            "cache_hit": detail.get("cache_hit", False),
+                            "source": detail.get("source"),
+                        },
                         "duration_ms": ms,
                     }
                 )
@@ -127,7 +130,12 @@ async def query_stream_v1(req: QueryRequest, request: Request):
                 yield await _emit({"type": "start", "stage": "start", "request_id": rid})
             elif stage == "retrieving":
                 yield await _emit(
-                    {"type": "stage", "stage": "retrieving", "detail": {"chunks": detail.get("chunks", 0)}, "duration_ms": ms}
+                    {
+                        "type": "stage",
+                        "stage": "retrieving",
+                        "detail": {"chunks": detail.get("chunks", 0)},
+                        "duration_ms": ms,
+                    }
                 )
             elif stage == "reranking":
                 yield await _emit({"type": "stage", "stage": "reranking", "duration_ms": ms})
@@ -142,15 +150,29 @@ async def query_stream_v1(req: QueryRequest, request: Request):
                         await asyncio.sleep(0.005)
             elif stage == "grounding":
                 yield await _emit(
-                    {"type": "stage", "stage": "grounding", "detail": {"status": detail.get("status")}, "duration_ms": ms}
+                    {
+                        "type": "stage",
+                        "stage": "grounding",
+                        "detail": {"status": detail.get("status")},
+                        "duration_ms": ms,
+                    }
                 )
             elif stage == "citation_check":
                 yield await _emit(
-                    {"type": "stage", "stage": "citation_check", "detail": {"citations": detail.get("citations", 0)}, "duration_ms": ms}
+                    {
+                        "type": "stage",
+                        "stage": "citation_check",
+                        "detail": {"citations": detail.get("citations", 0)},
+                        "duration_ms": ms,
+                    }
                 )
             elif stage == "usage":
                 yield await _emit(
-                    {"type": "usage", "detail": {"llm_calls": detail.get("llm_calls", 0)}, "duration_ms": ms}
+                    {
+                        "type": "usage",
+                        "detail": {"llm_calls": detail.get("llm_calls", 0)},
+                        "duration_ms": ms,
+                    }
                 )
             elif stage == "done":
                 result = detail["result"]
