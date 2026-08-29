@@ -37,8 +37,18 @@ def _demo_env(tmp_path, monkeypatch):
     from src.config.settings import Settings
 
     Settings.model_config["env_file"] = None  # 不读 .env
+    from src.api import deps
+
+    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
+                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
+                 "get_incremental_indexer"):
+        getattr(deps, name).cache_clear()
     yield
     Settings.model_config["env_file"] = ".env"
+    for name in ("get_settings", "get_embedder", "get_milvus_client", "get_latest_v1_collection",
+                 "get_bm25", "get_reranker", "get_retriever", "get_vqa", "get_semantic_cache",
+                 "get_incremental_indexer"):
+        getattr(deps, name).cache_clear()
 
 
 class TestDemoComponents:

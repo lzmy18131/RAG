@@ -67,6 +67,7 @@ def create_app(settings: Any = None) -> FastAPI:
         validation_exception_handler,
     )
     from src.api.routes import router
+    from src.api.routes_v1 import v1_router
     from src.config.settings import Settings
     from src.exceptions import RAGError
 
@@ -100,6 +101,7 @@ def create_app(settings: Any = None) -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     app.include_router(router)
+    app.include_router(v1_router)
 
     # ── 健康与版本（audit B3 / §56）──
 
