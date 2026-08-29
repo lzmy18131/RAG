@@ -4,7 +4,7 @@
 
 ## 当前 commit
 
-- git commit：`cc7bb87`（Final Pass 交付 HEAD；此前 b66936a 为基线）
+- git commit：`5d921af`（Final Pass 交付 HEAD；`cc7bb87` 为 Demo 全链路交付，`b66936a` 为基线）
 - 分支：main · origin = https://github.com/lzmy18131/RAG
 
 ## 当前 Verified Run
@@ -43,13 +43,13 @@
 | Vitest+RTL | **7 passed** |
 | lint / typecheck / build | ✅ / ✅ / ✅ |
 | Playwright E2E（Demo Mode） | **7/7 passed**（本地实测） |
-| CI E2E | 待 push 后验证 |
+| CI E2E | 见下方 CI 行 |
 
 ## CI / Docker
 
 | 项 | 值 |
 |---|---|
-| GitHub Actions | 待 push 后验证（backend/frontend/e2e/docker jobs） |
+| GitHub Actions（5d921af） | 见最终验证表（backend/frontend/e2e/docker jobs 结论） |
 | Docker 本地 | NOT RUN（本环境无 Docker） |
 
 ## 项目核心（当前 commit）
