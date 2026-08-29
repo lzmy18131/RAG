@@ -1,4 +1,8 @@
-# ── Core dependencies（audit P1-1：补齐缺失声明） ──
+# 依赖的单一来源是 pyproject.toml（[project].dependencies）。
+# 本文件保留为 legacy install 路径（pip install -r requirements.txt），
+# 与 pyproject 保持同步；新增/变更依赖请同时修改两处。
+#
+# 开发与评测依赖：pip install -e ".[dev,eval]"
 
 # Configuration
 pydantic-settings>=2.0
@@ -32,13 +36,13 @@ rank-bm25>=0.2
 langgraph>=1.0
 langchain-openai>=0.3
 
-# RAG 评测（Phase 2；仅离线评测需要）
+# RAG 评测（仅离线评测需要）
 ragas==0.4.3
 datasets>=2.0
 
-# ── Dev dependencies（可选安装） ──
-# pip install -r requirements-dev.txt
-# pytest>=7.0
+# Dev 依赖（pip install -e ".[dev]"）
+# pytest>=8.0
 # pytest-asyncio>=0.24
 # pytest-cov>=5.0
 # ruff>=0.8
+# mypy>=1.10

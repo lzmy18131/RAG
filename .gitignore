@@ -50,3 +50,10 @@ data/raw_docs/*.pdf
 
 # 派生自商业说明书（见 docs/DATA_LICENSE.md）
 data/processed/v1_images/
+
+# 测试/运行产物
+coverage.json
+htmlcov/
+MagicMock/
+storage/semantic_cache.db
+*.pyc

@@ -104,14 +104,17 @@ class HybridRetriever:
         rrf_k: int | None = None,
         dense_top_k: int | None = None,
         bm25_top_k: int | None = None,
+        bm25: BM25Retriever | None = None,
+        client=None,
     ):
         from src.config.settings import settings as _s
 
         self.collection_name = collection_name
         self._dense: DenseRetriever | None = None
-        self._bm25: BM25Retriever | None = None
+        self._bm25: BM25Retriever | None = bm25  # injected instance (demo/tests)
         self._bm25_path = bm25_index_path
         self._embedder = embedder  # shared BGE-M3 (see DenseRetriever)
+        self._client = client  # injected Milvus client (demo/tests)
         self.rrf_k = rrf_k if rrf_k is not None else _s.retrieval_rrf_k
         self.dense_top_k = dense_top_k if dense_top_k is not None else _s.retrieval_dense_top_k
         self.bm25_top_k = bm25_top_k if bm25_top_k is not None else _s.retrieval_bm25_top_k
@@ -121,6 +124,7 @@ class HybridRetriever:
             self._dense = DenseRetriever(
                 collection_name=self.collection_name,
                 embedder=self._embedder,
+                client=self._client,
             )
         return self._dense
 

@@ -74,7 +74,9 @@ class TestHealth:
         assert r.status_code == 200
         data = r.json()
         assert data["status"] == "ok"
-        assert data["version"] == "V9"
+        # 应用版本是 semver，pipeline 版本独立（Final Pass §6）
+        assert data["version"].split(".")[0].isdigit()
+        assert data["pipeline_version"] == "rag-v9"
 
     def test_health_has_models(self, client):
         r = client.get("/health")

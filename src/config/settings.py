@@ -37,9 +37,19 @@ class Settings(BaseSettings):
     model_device: str = "auto"  # "auto", "cuda", or "cpu"
 
     # ── Application ──
+    app_env: str = "development"  # development | testing | production
+    app_host: str = "127.0.0.1"
+    app_port: int = 8000
+    demo_mode: bool = False  # True = 无 API key / GPU 的确定性演示链路（Stub 模型 + 合成语料）
     log_level: str = "INFO"
+    log_format: str = "text"  # text | json
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     data_dir: str = "data"
     storage_dir: str = "storage"
+    max_upload_mb: int = 50  # 上传大小上限（MB）
+    max_pdf_pages: int = 500  # PDF 页数上限
+    max_concurrent_queries: int = 4  # 并发查询上限（进程内信号量）
+    max_concurrent_reranks: int = 4  # 并发重排上限
 
     # ── Retrieval 配置（audit R2：消除 magic number，单一来源）──
     retrieval_rrf_k: int = 60  # RRF 融合常数

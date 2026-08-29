@@ -34,6 +34,11 @@ def _milvus_uri() -> str:
 
 @lru_cache
 def get_embedder():
+    from src.infra.demo import FakeEmbedder
+
+    if get_settings().demo_mode:
+        return FakeEmbedder()
+
     from src.infra.embedder import Embedder
 
     e = Embedder()
@@ -43,6 +48,13 @@ def get_embedder():
 
 @lru_cache
 def get_milvus_client():
+    from src.infra.demo import DEMO_COLLECTION, DEMO_CORPUS, FakeMilvusClient
+
+    if get_settings().demo_mode:
+        client = FakeMilvusClient()
+        client.seed(DEMO_COLLECTION, DEMO_CORPUS, get_embedder())
+        return client
+
     from pymilvus import MilvusClient
 
     with _lock:
@@ -51,6 +63,10 @@ def get_milvus_client():
 
 @lru_cache
 def get_latest_v1_collection() -> str:
+    from src.infra.demo import DEMO_COLLECTION
+
+    if get_settings().demo_mode:
+        return DEMO_COLLECTION
     client = get_milvus_client()
     kw = sorted([c for c in client.list_collections() if c.startswith("v1_multimodal_kw_")])
     ts = sorted([c for c in client.list_collections() if c.startswith("v1_multimodal_2")])
@@ -59,6 +75,11 @@ def get_latest_v1_collection() -> str:
 
 @lru_cache
 def get_bm25():
+    from src.infra.demo import build_demo_bm25
+
+    if get_settings().demo_mode:
+        return build_demo_bm25()
+
     from src.retrieval.bm25 import BM25Retriever
 
     bm = BM25Retriever()
@@ -72,6 +93,11 @@ def get_bm25():
 
 @lru_cache
 def get_reranker():
+    from src.infra.demo import FakeReranker
+
+    if get_settings().demo_mode:
+        return FakeReranker()
+
     from src.infra.reranker import Reranker
 
     r = Reranker()
@@ -82,6 +108,15 @@ def get_reranker():
 @lru_cache
 def get_retriever():
     from src.retrieval.reranked_retriever import RerankedRetriever
+
+    if get_settings().demo_mode:
+        return RerankedRetriever(
+            collection_name=get_latest_v1_collection(),
+            reranker=get_reranker(),
+            embedder=get_embedder(),
+            bm25=get_bm25(),
+            client=get_milvus_client(),
+        )
 
     return RerankedRetriever(
         collection_name=get_latest_v1_collection(),
@@ -142,6 +177,18 @@ def get_vqa():
     from src.workflow.verified_qa import VerifiedQA
 
     s = get_settings()
+    if s.demo_mode:
+        from src.generation.demo_generator import demo_generate_answer
+
+        return VerifiedQA(
+            get_retriever(),
+            demo_generate_answer,
+            GroundingVerifier(
+                scorer=CrossEncoderScorer(get_reranker()),
+                scorer_floor=s.grounding_scorer_floor,
+                min_support_ratio=s.grounding_min_support_ratio,
+            ),
+        )
     if s.verifier_mode == "llm":
         verifier = _make_llm_verifier()
     elif s.grounding_scorer == "cosine":

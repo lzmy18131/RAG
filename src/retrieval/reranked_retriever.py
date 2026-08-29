@@ -24,12 +24,16 @@ class RerankedRetriever:
         final_top_k: int = 5,
         reranker: Reranker | None = None,
         embedder=None,
+        bm25=None,
+        client=None,
     ):
         self.collection_name = collection_name
         self._hybrid = HybridRetriever(
             collection_name=collection_name,
             bm25_index_path=bm25_index_path,
             embedder=embedder,
+            bm25=bm25,
+            client=client,
         )
         # Injectable shared instance (e.g. deps.get_reranker) so the grounding
         # verifier can reuse the SAME cross-encoder instead of loading a 2nd.

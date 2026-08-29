@@ -64,16 +64,21 @@ class TestHealthVersion:
     def test_version_semver(self, client):
         r = client.get("/version")
         assert r.status_code == 200
-        v = r.json()["version"]
+        body = r.json()
+        # app_version 与 pipeline_version 分离（Final Pass §6）
+        v = body["app_version"]
         parts = v.split(".")
         assert len(parts) >= 2  # semver，不是 "V9"
+        assert body["pipeline_version"] == "rag-v9"
+        assert "git_commit" in body  # None 或真实 SHA，禁止伪造
 
     def test_health_ready_shape(self, client):
         r = client.get("/health/ready")
         assert r.status_code in (200, 503)
         body = r.json()
         assert "checks" in body
-        assert "milvus" in body["checks"]
+        # vector_store（demo=内存 / 生产=Milvus 配置）
+        assert "vector_store" in body["checks"]
 
     def test_health_legacy_still_works(self, client):
         r = client.get("/health")

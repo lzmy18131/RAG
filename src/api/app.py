@@ -25,6 +25,34 @@ def _app_version() -> str:
         return "0.0.0-dev"
 
 
+def _git_commit() -> str | None:
+    """git commit（短 SHA）；无 git 环境时返回 None，禁止伪造。"""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return out.stdout.strip() or None
+    except Exception:  # noqa: BLE001 - git 不可用降级
+        return None
+
+
+def _build_time() -> str | None:
+    """构建时间（可选环境注入 BUILD_TIME）；缺省 None，禁止伪造。"""
+    import os
+
+    return os.environ.get("BUILD_TIME") or None
+
+
+def _pipeline_version() -> str:
+    """RAG pipeline 演进版本（V0→V9）；与应用版本分离。"""
+    return "rag-v9"
+
+
 def create_app(settings: Any = None) -> FastAPI:
     """构建 FastAPI 应用。
 
@@ -82,25 +110,70 @@ def create_app(settings: Any = None) -> FastAPI:
 
     @app.get("/health/ready")
     async def health_ready(request: Request):
-        """就绪探针：检查本地组件（配置/路径/缓存），不实例化重对象、不调用真实 LLM。"""
+        """就绪探针（真实检查，不可用返回 503，任务书 §12）。
+
+        检查（不调用真实 LLM / 不实例化重对象）：
+        - storage_dir / data_dir 存在
+        - manifest 可读（storage/manifests/manifests.json 或 demo corpus 可加载）
+        - 语义缓存可初始化（demo 模式用 FakeEmbedder，否则按配置）
+        - 向量存储配置合法（demo 模式内存；否则 Milvus URI 非空）
+        - 运行期必需依赖（LLM/VLM/embedding 配置）在非 demo 模式必须就绪
+        """
+        from pathlib import Path
+
         from src.config.settings import Settings
 
         s = Settings()
         checks: dict[str, str] = {}
         ready = True
-        for name, path in (
-            ("data_dir", s.data_dir),
-            ("storage_dir", s.storage_dir),
-            ("cache_db", s.cache_db_path),
-        ):
-            from pathlib import Path
 
-            p = Path(path)
-            checks[name] = "ok" if p.exists() or name in ("data_dir", "storage_dir") else "missing"
-        checks["embedder"] = s.embedding_model
-        checks["reranker"] = s.reranker_model
-        checks["milvus"] = s.milvus_uri
-        checks["llm_configured"] = "yes" if s.llm_api_key not in ("", "replace-me") else "no"
+        def _check(name: str, ok: bool, detail: str = "ok") -> None:
+            nonlocal ready
+            checks[name] = detail if ok else f"error: {detail}"
+            if not ok:
+                ready = False
+
+        # data/storage 目录
+        data_dir = Path(s.data_dir)
+        storage_dir = Path(s.storage_dir)
+        _check("data_dir", data_dir.exists() or s.demo_mode, "missing")
+        _check("storage_dir", storage_dir.exists() or s.demo_mode, "missing")
+
+        # manifest（corpus 状态）——demo 模式使用内置合成语料
+        if s.demo_mode:
+            try:
+                from src.infra.demo import DEMO_CORPUS
+
+                _check("manifest", len(DEMO_CORPUS) > 0, "demo corpus empty")
+            except Exception as e:  # noqa: BLE001
+                _check("manifest", False, str(e))
+        else:
+            manifest = storage_dir / "manifests" / "manifests.json"
+            _check("manifest", manifest.exists(), "manifests.json missing")
+
+        # 语义缓存可初始化
+        try:
+            cache_db = Path(s.cache_db_path)
+            cache_db.parent.mkdir(parents=True, exist_ok=True)
+            _check("cache_db", True)
+        except Exception as e:  # noqa: BLE001
+            _check("cache_db", False, str(e))
+
+        # 向量存储配置（demo = 内存；否则 Milvus URI 必须有效配置）
+        if s.demo_mode:
+            _check("vector_store", True, "demo-in-memory")
+        else:
+            _check("vector_store", bool(s.milvus_uri.strip()), "milvus_uri empty")
+
+        # 必需运行时服务（非 demo 模式）：LLM / VLM / embedding 必须配置
+        if not s.demo_mode:
+            _check("llm_configured", s.llm_api_key not in ("", "replace-me"), "llm_api_key missing")
+            _check("vlm_configured", s.vlm_api_key not in ("", "replace-me"), "vlm_api_key missing")
+        else:
+            checks["llm_configured"] = "demo"
+            checks["vlm_configured"] = "demo"
+
+        checks["demo_mode"] = "yes" if s.demo_mode else "no"
         return JSONResponse(
             status_code=200 if ready else 503,
             content={"status": "ready" if ready else "not_ready", "checks": checks},
@@ -108,8 +181,18 @@ def create_app(settings: Any = None) -> FastAPI:
 
     @app.get("/version")
     async def version_info():
-        """应用版本（semver；与 V0-V9 实验版本区分）。"""
-        return {"version": _app_version(), "name": "multimodal-rag"}
+        """应用版本与 pipeline 版本分离（任务书 §6）。
+
+        - app_version：来自 package metadata 的 semver（1.0.0 等）。
+        - pipeline_version：RAG 管线演进版本（rag-v9）。
+        - git_commit / build_time：真实值；无法获得时 null（禁止伪造）。
+        """
+        return {
+            "app_version": _app_version(),
+            "pipeline_version": _pipeline_version(),
+            "git_commit": _git_commit(),
+            "build_time": _build_time(),
+        }
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics_endpoint():

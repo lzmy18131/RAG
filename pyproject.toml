@@ -1,3 +1,67 @@
+[project]
+name = "rag"
+version = "1.0.0"
+description = "Production-style Multimodal RAG & Evaluation System — 多模态可信 RAG 智能硬件维保知识助手"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+readme = "README.md"
+dependencies = [
+    # Configuration
+    "pydantic-settings>=2.0",
+    "python-dotenv>=0.21",
+    "pyyaml>=6.0",
+
+    # Web 框架
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "python-multipart>=0.0.9",
+
+    # Deep learning（本地模型；Demo Mode 不需要）
+    "torch>=2.0",
+    "sentence-transformers>=2.7",
+
+    # Vector database（Milvus Lite 单进程模式）
+    "pymilvus>=2.4",
+    "milvus-lite>=3.0",
+
+    # OpenAI-compatible API client（LLM / VLM）
+    "openai>=1.0",
+
+    # PDF parsing
+    "pymupdf>=1.28",
+
+    # 检索
+    "jieba>=0.42",
+    "rank-bm25>=0.2",
+
+    # 编排（LangGraph Verify 流程）
+    "langgraph>=1.0",
+    "langchain-openai>=0.3",
+]
+
+[project.optional-dependencies]
+# 开发与质量门禁
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "ruff>=0.8",
+    "mypy>=1.10",
+]
+# 离线评测（RAGAS 等）
+eval = [
+    "ragas==0.4.3",
+    "datasets>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [tool.pytest.ini_options]
 # Exclude scripts from test collection — smoke_test.py has API-calling
 # test_* functions meant for direct invocation only.
@@ -17,3 +81,30 @@ ignore = ["B008", "UP007", "BLE001", "E501", "E402"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = ["src/api/app.py"]
+
+[tool.coverage.report]
+# Final Pass 基线：68%（branch）。目标：Overall >= 75~80%；关键模块（retrieval/eval/cache/
+# grounding/citation/gateway）>= 85~90%。gate 留 5 个点维护余量。
+fail_under = 70
+show_missing = true
+skip_covered = true
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+exclude = [
+    # 第三方/可选依赖类型缺失，按模块忽略（见 docs/FINAL_ENGINEERING_REPORT.md）
+    "src/infra/milvus_client.py",
+    "src/infra/embedder.py",
+    "src/infra/reranker.py",
+    "src/infra/vlm_client.py",
+]
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+warn_unused_ignores = false

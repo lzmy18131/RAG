@@ -89,9 +89,12 @@ async def health():
     final_eval_exists = (
         PROJECT_ROOT / "storage" / "runs" / "final_eval" / "final_metrics.json"
     ).exists()
+    from src.api.app import _app_version
+
     return {
         "status": "ok",
-        "version": "V9",
+        "version": _app_version(),
+        "pipeline_version": "rag-v9",
         "collection": get_latest_v1_collection(),
         "milvus": settings.milvus_uri,
         "bm25_docs": get_bm25().num_docs,
@@ -308,119 +311,111 @@ async def system_status():
 
 @router.get("/versions")
 async def version_highlights():
-    """V6/V8/V9 evaluation highlights, read from storage JSONs (README values
-    as fallback so the page renders even before a fresh eval run)."""
+    """V6/V8/V9 评估亮点——只返回**真实 run artifact**（任务书 §5）。
+
+    无 artifact → ``{"available": false, "source": "none", "run_id": null, "metrics": null}``。
+    历史 benchmark 只保留在 docs（README / EXPERIMENT_LOG），API 不做历史数字 fallback，
+    避免把重构前的旧结果伪装成当前状态。
+    """
     settings = get_settings()
+
+    def _no_run() -> dict:
+        return {"available": False, "source": "none", "run_id": None, "metrics": None}
+
+    def _load_metrics(path: Path) -> dict | None:
+        try:
+            if path.exists():
+                return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    # ── V6 deterministic grounding（真实 artifact：storage/runs/v6_grounding/） ──
+    v6_dir = PROJECT_ROOT / "storage" / "runs" / "v6_grounding"
+    v6_meta = _load_metrics(v6_dir / "metadata.json")
+    v6_poison = _load_metrics(v6_dir / "poison_test.json")
+    if v6_meta is None and v6_poison is None:
+        v6: dict = _no_run()
+    else:
+        # 历史 artifact：本 refactor 后未重跑 → 明确标注
+        v6 = {
+            "available": True,
+            "source": "historical",
+            "run_id": "v6_grounding",
+            "verified_after_refactor": False,
+        }
+        v6["metrics"] = {
+            "total": v6_meta.get("total_cases", 100) if v6_meta else None,
+            "answered": v6_meta.get("fixed_answered") if v6_meta else None,
+            "avg_support_ratio": v6_meta.get("avg_support_ratio") if v6_meta else None,
+            "retries_used": v6_meta.get("retries_used") if v6_meta else None,
+        }
+        if isinstance(v6_poison, list) and v6_poison:
+            flagged = sum(1 for r in v6_poison if r.get("poison_flagged_unsupported"))
+            v6["metrics"]["poison_flagged"] = flagged
+            v6["metrics"]["poison_total"] = len(v6_poison)
+            v6["metrics"]["poison_rate"] = round(flagged / len(v6_poison), 4)
+
+    # ── V7 LLM gateway（实时配置，始终真实） ──
     from src.infra.gateway import get_gateway
 
-    # ── V6 deterministic grounding ──
-    v6 = {
-        "total": 100,
-        "answered": 95,
-        "avg_support_ratio": 0.9935,
-        "poison_flagged": 28,
-        "poison_total": 34,
-        "poison_rate": round(28 / 34, 4),
-        "over_refused": 1,
-        "retries_used": 5,
-    }
-    p = PROJECT_ROOT / "storage" / "runs" / "v6_grounding" / "metadata.json"
-    if p.exists():
-        try:
-            m = json.loads(p.read_text(encoding="utf-8"))
-            v6 = {
-                **v6,
-                "total": m.get("total_cases", 100),
-                "answered": m.get("fixed_answered", 95),
-                "avg_support_ratio": m.get("avg_support_ratio", 0.9935),
-                "retries_used": m.get("retries_used", 5),
-            }
-        except Exception:
-            pass
-    pp = PROJECT_ROOT / "storage" / "runs" / "v6_grounding" / "poison_test.json"
-    if pp.exists():
-        try:
-            rows = json.loads(pp.read_text(encoding="utf-8"))
-            flagged = sum(1 for r in rows if r.get("poison_flagged_unsupported"))
-            total = len(rows)
-            if total:
-                v6 = {
-                    **v6,
-                    "poison_flagged": flagged,
-                    "poison_total": total,
-                    "poison_rate": round(flagged / total, 4),
-                }
-        except Exception:
-            pass
-
-    # ── V7 LLM gateway (live config) ──
     gw = get_gateway()
     v7 = {
-        "timeout_s": settings.llm_timeout,
-        "max_retries": settings.llm_max_retries,
-        "circuit_threshold": settings.llm_circuit_threshold,
-        "cooldown_s": settings.llm_circuit_cooldown,
-        "configured_providers": len(gw.state_dump().get("providers", [])),
+        "available": True,
+        "source": "live-config",
+        "metrics": {
+            "timeout_s": settings.llm_timeout,
+            "max_retries": settings.llm_max_retries,
+            "circuit_threshold": settings.llm_circuit_threshold,
+            "cooldown_s": settings.llm_circuit_cooldown,
+            "configured_providers": len(gw.state_dump().get("providers", [])),
+        },
     }
 
-    # ── V8 multi-doc (123-question retrieval-only) ──
-    v8 = {
-        "questions": 123,
-        "text": 114,
-        "image": 9,
-        "v3_hit_at_5": 0.9756,
-        "v3_mrr": 0.8916,
-        "v3_top1": 0.8293,
-        "ecovacs_mrr": 0.90,
-    }
-    p = PROJECT_ROOT / "storage" / "runs" / "final_eval_extended_full" / "final_metrics.json"
-    if p.exists():
-        try:
-            d = json.loads(p.read_text(encoding="utf-8"))
-            rm = d.get("versions", {}).get("V3", {}).get("retrieval_metrics", {})
-            v8 = {
-                **v8,
-                "questions": d.get("total_questions", 123),
-                "v3_hit_at_5": rm.get("hit_at_5", 0.9756),
-                "v3_mrr": rm.get("mrr", 0.8916),
-                "v3_top1": rm.get("top1_hit_rate", 0.8293),
-            }
-            split = d.get("versions", {}).get("V3", {}).get("split_by_document", {})
-            eco = split.get("Ecovacs DEEBOT T30C") or split.get("Ecovacs")
-            if eco:
-                v8["ecovacs_mrr"] = eco.get("mrr", 0.90)
-        except Exception:
-            pass
+    # ── V8 multi-doc（真实 artifact：storage/runs/final_eval_extended_full/） ──
+    v8_path = PROJECT_ROOT / "storage" / "runs" / "final_eval_extended_full" / "final_metrics.json"
+    v8_data = _load_metrics(v8_path)
+    if v8_data is None:
+        v8: dict = _no_run()
+    else:
+        rm = (v8_data.get("versions") or {}).get("V3", {}).get("retrieval_metrics", {})
+        v8 = {
+            "available": True,
+            "source": "historical",
+            "run_id": "final_eval_extended_full",
+            "verified_after_refactor": False,
+            "metrics": {
+                "questions": v8_data.get("total_questions"),
+                "hit_at_5": rm.get("hit_at_5"),
+                "mrr": rm.get("mrr"),
+                "top1_hit_rate": rm.get("top1_hit_rate"),
+            },
+        }
 
-    # ── V9 semantic cache ──
-    v9 = {
-        "warmed": 12,
-        "exact_hits": 12,
-        "semantic_hits": 4,
-        "overall_hit_rate": 0.6667,
-        "avg_cached_s": 0.031,
-        "avg_uncached_s": 113.62,
-        "llm_calls_saved": 12,
-    }
-    p = PROJECT_ROOT / "storage" / "runs" / "v9_cache" / "cache_eval.json"
-    if p.exists():
-        try:
-            d = json.loads(p.read_text(encoding="utf-8"))
-            v9 = {
-                **v9,
-                "warmed": d.get("warmed", 12),
-                "exact_hits": d.get("exact_hits", 12),
-                "semantic_hits": d.get("semantic_hits", 4),
-                "overall_hit_rate": d.get("overall_hit_rate", 0.6667),
-                "avg_cached_s": d.get("avg_cached_s", 0.031),
-                "avg_uncached_s": d.get("avg_uncached_s", 113.62),
-                "llm_calls_saved": d.get("llm_calls_saved", 12),
-            }
-        except Exception:
-            pass
+    # ── V9 semantic cache（真实 artifact：storage/runs/v9_cache/） ──
+    v9_path = PROJECT_ROOT / "storage" / "runs" / "v9_cache" / "cache_eval.json"
+    v9_data = _load_metrics(v9_path)
+    if v9_data is None:
+        v9: dict = _no_run()
+    else:
+        v9 = {
+            "available": True,
+            "source": "historical",
+            "run_id": "v9_cache",
+            "verified_after_refactor": False,
+            "metrics": {
+                "warmed": v9_data.get("warmed"),
+                "exact_hits": v9_data.get("exact_hits"),
+                "semantic_hits": v9_data.get("semantic_hits"),
+                "overall_hit_rate": v9_data.get("overall_hit_rate"),
+                "avg_cached_s": v9_data.get("avg_cached_s"),
+                "avg_uncached_s": v9_data.get("avg_uncached_s"),
+                "llm_calls_saved": v9_data.get("llm_calls_saved"),
+            },
+        }
 
     return {
-        "version": "V9",
+        "version": "rag-v9",
         "v6_grounding": v6,
         "v7_gateway": v7,
         "v8_multidoc": v8,
