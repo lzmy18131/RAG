@@ -55,12 +55,12 @@ class StageTimer:
         return round(self._totals.get(name, 0.0), 1)
 
     def snapshot(self) -> dict:
-        """各阶段平均耗时（ms）+ total。"""
+        """各阶段平均耗时（ms）+ total（由舍入后的各阶段求和，保证不变量）。"""
         out = {}
         total = 0.0
         for name, ms in sorted(self._totals.items()):
-            avg = ms / self._counts.get(name, 1)
-            out[f"{name}_ms"] = round(avg, 1)
+            avg = round(ms / self._counts.get(name, 1), 1)
+            out[f"{name}_ms"] = avg
             total += avg
         out["total_ms"] = round(total, 1)
         return out

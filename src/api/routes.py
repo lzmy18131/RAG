@@ -201,18 +201,37 @@ async def list_documents():
     return DocumentListResponse(documents=docs)
 
 
+def _corpus_version(settings) -> str:
+    """corpus_version：由 manifests.json 内容派生。
+
+    任一文档增/删/改 → manifest 变化 → corpus_version 变化 → 语义缓存 key 变化，
+    避免知识库更新后缓存返回陈旧答案（audit P0-4）。
+    """
+    import hashlib
+
+    p = PROJECT_ROOT / "storage" / "manifests" / "manifests.json"
+    try:
+        if p.exists():
+            return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+        return "empty"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
 @router.post("/query", response_model=QueryResponse)
 async def query(req: QueryRequest):
     """Answer via the LangGraph pipeline (V4→V6), with optional doc_filter
     scope (V8) and the V9 semantic-cache fast-path. The cache is salted with
-    the doc_filter so answers scoped to different manuals never collide."""
+    the doc_filter AND the corpus_version so answers scoped to different
+    manuals never collide, and knowledge-base updates invalidate stale
+    cache entries (audit P0-4)."""
     t0 = time.perf_counter()
     settings = get_settings()
 
     from src.eval.doc_registry import resolve_doc_filter
 
     doc_filter = resolve_doc_filter(req.source_document) if req.source_document else None
-    salt = doc_filter or ""
+    salt = f"{doc_filter or ''}|corpus:{_corpus_version(settings)}"
 
     # ── V9 semantic cache: exact (SHA256) then semantic (BGE-M3 cosine) ──
     cache = None
