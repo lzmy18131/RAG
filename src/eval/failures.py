@@ -28,7 +28,9 @@ FAILURE_CATEGORIES = {
 }
 
 # 判定优先级（返回第一个命中的类别；UNKNOWN 兜底）
-_CLASSIFIERS: list[tuple[str, callable]] = []
+from collections.abc import Callable
+
+_CLASSIFIERS: list[tuple[str, Callable[[dict], str]]] = []
 
 
 def _register(category: str):

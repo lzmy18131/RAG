@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from src.ingestion.chunker import chunk_document
 from src.ingestion.manifest import DocManifest, ManifestStore, file_hash
@@ -45,7 +46,7 @@ class IncrementalIndexer:
             current_files[str(p)] = file_hash(str(p))
 
         classified = self.store.classify(current_files)
-        counts = {
+        counts: dict[str, Any] = {
             "added": 0,
             "unchanged": 0,
             "modified": 0,
@@ -92,7 +93,7 @@ class IncrementalIndexer:
 
         self.store.save()
         counts["failures"] = list(self.failures)
-        return counts
+        return counts  # type: ignore[return-value]  # counts 键为混合类型（int/list）
 
     # ── Internal ──
 
@@ -141,7 +142,7 @@ class IncrementalIndexer:
             text_pages=len(doc.pages),
             num_chunks=len(chunks),
         )
-        self.store.set(manifest)
+        self.store.upsert(manifest)
         return {"embedded": len(chunks), "pages": doc.metadata["total_pages"]}
 
     def _modify_document(self, path: str) -> dict:

@@ -42,8 +42,6 @@ test-results/
 .DS_Store
 Thumbs.db
 
-# 实验注册目录（Phase 2）
-runs/
 
 # 商业说明书不随仓库分发（见 docs/DATA_LICENSE.md）
 data/raw_docs/*.pdf

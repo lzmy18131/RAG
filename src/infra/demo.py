@@ -27,7 +27,7 @@ DEMO_COLLECTION = "demo_corpus"
 # 自造的「智能清洁机器人 X1 使用与维护手册（DEMO 版）」节选：
 # 覆盖故障码 / 维护流程 / 参数 / 按钮组件 / 图片示意图 caption。
 
-_DEMO_ROWS: list[dict[str, Any]] = [
+_DEMO_ROWS: list[tuple[str, int, str, str]] = [
     # (chunk_id, page, type, text)
     ("demo-0001", 1, "text", "X1 智能清洁机器人支持自动回充：电量低于 20% 时自动返回充电座，充电 3 小时后可恢复满电状态。"),
     ("demo-0002", 1, "image", "正面示意图：机身顶部为电源键与回充键，前方为激光雷达传感器，底部为边刷与主滚刷。"),

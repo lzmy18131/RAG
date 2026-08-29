@@ -325,7 +325,7 @@ class GroundingVerifier:
                             raise ValueError("scorer returned empty")
                     else:
                         sent_vec = self.embedder.encode(clean)
-                        sims = [_cos(sent_vec, cv) for cv in chunk_vecs]
+                        sims = [_cos(sent_vec, cv) for cv in (chunk_vecs or [])]
                 except Exception:
                     sentence_evidence.append(entry)
                     continue

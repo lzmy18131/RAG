@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from src.api.schemas import (
     CacheInfo,
@@ -137,7 +137,8 @@ class RAGService:
         t_total = time.perf_counter()
         doc_filter = self._resolve_doc_filter(document_ids)
         corpus_version = self._corpus_version()
-        cache_salt = f"{doc_filter or ''}|corpus:{corpus_version}"
+        # salt 含响应 schema 版本：v1 契约与 legacy /query 缓存不串用（任务书 §26）
+        cache_salt = f"{doc_filter or ''}|corpus:{corpus_version}|schema:v1"
 
         # ── 1. 缓存查找 ──
         with _stage_timer(stages, "cache_lookup_ms"):
@@ -146,16 +147,21 @@ class RAGService:
                 cached_raw = self.cache.get(question, salt=cache_salt)
         if cached_raw is not None:
             resp, source = cached_raw
-            result = QueryResult(
-                answer=resp.get("answer", ""),
-                status=resp.get("status", "answered"),
-                citations=[Citation(**c) for c in resp.get("citations", [])],
-                sources=resp.get("sources", []),
-                grounding=GroundingResult(**resp.get("grounding", {})),
-                usage=UsageInfo(**resp.get("usage", {})),
-                cache=CacheInfo(hit=True, source=source, corpus_version=corpus_version),
-                request_id=request_id,
-            )
+            try:
+                result = QueryResult(
+                    answer=resp.get("answer", ""),
+                    status=resp.get("status", "answered"),
+                    citations=[Citation(**c) for c in resp.get("citations", [])],
+                    sources=resp.get("sources", []),
+                    grounding=GroundingResult(**resp.get("grounding", {})),
+                    usage=UsageInfo(**resp.get("usage", {})),
+                    cache=CacheInfo(hit=True, source=source, corpus_version=corpus_version),
+                    request_id=request_id,
+                )
+            except Exception:  # noqa: BLE001 - 缓存条目 schema 不兼容 → 视为未命中
+                cached_raw = None
+
+        if cached_raw is not None:
             result.latency = {"total_ms": 0, "cache_hit": True, **stages}
             yield "cache_lookup", {"cache_hit": True, "source": source, "result": result}, stages["cache_lookup_ms"]
             yield "done", {"result": result}, 0
@@ -225,7 +231,9 @@ class RAGService:
                 vr = {"supported": False, "unsupported_claims": ["grounding error"]}
         supported = bool(vr.get("supported"))
         unsupported = vr.get("unsupported_claims", []) or []
-        g_status = "supported" if supported else ("warning" if unsupported else "abstained")
+        g_status: Literal["supported", "warning", "abstained"] = (
+            "supported" if supported else ("warning" if unsupported else "abstained")
+        )
         grounding = GroundingResult(
             status=g_status,
             support_ratio=vr.get("support_ratio"),

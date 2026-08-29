@@ -102,7 +102,7 @@ class ManifestStore:
     def get(self, source_file: str) -> DocManifest | None:
         return self._manifests.get(source_file)
 
-    def set(self, manifest: DocManifest) -> None:
+    def upsert(self, manifest: DocManifest) -> None:
         self._manifests[manifest.source_file] = manifest
 
     def remove(self, source_file: str) -> None:
@@ -123,9 +123,9 @@ class ManifestStore:
         Returns:
             {"added": [...], "unchanged": [...], "modified": [...], "deleted": [...]}
         """
-        stored = self.all_files()
-        current = set(current_files.keys())
-        result = {"added": [], "unchanged": [], "modified": [], "deleted": []}
+        stored: set[str] = self.all_files()
+        current: set[str] = set(current_files.keys())
+        result: dict[str, list[str]] = {"added": [], "unchanged": [], "modified": [], "deleted": []}
 
         for path in current - stored:
             result["added"].append(path)

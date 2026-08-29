@@ -1,0 +1,34 @@
+{
+  "retrieval": {
+    "recall@1": 0.5417,
+    "hit@1": 0.8333,
+    "precision@1": 0.8333,
+    "ndcg@1": 0.8333,
+    "recall@3": 0.9167,
+    "hit@3": 1.0,
+    "precision@3": 0.5,
+    "ndcg@3": 0.8792,
+    "recall@5": 0.9167,
+    "hit@5": 1.0,
+    "precision@5": 0.3,
+    "ndcg@5": 0.8792,
+    "recall@10": 0.9167,
+    "hit@10": 1.0,
+    "precision@10": 0.3,
+    "ndcg@10": 0.8792,
+    "recall@20": 0.9167,
+    "hit@20": 1.0,
+    "precision@20": 0.3,
+    "ndcg@20": 0.8792,
+    "mrr": 0.9167,
+    "top1_hit": 0.8333,
+    "num_queries": 12
+  },
+  "n_queries": 12,
+  "cache": {
+    "exact_hits": 12,
+    "semantic_hits": 1,
+    "misses": 0,
+    "false_hit_rate": 0.0
+  }
+}

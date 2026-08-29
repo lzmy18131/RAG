@@ -54,4 +54,6 @@ class Embedder:
         """Dimensionality of the embedding vectors."""
         if self._model is None:
             raise RuntimeError("Model not loaded. Call load() first.")
-        return self._model.get_embedding_dimension()
+        dim = self._model.get_embedding_dimension()
+        assert dim is not None
+        return dim

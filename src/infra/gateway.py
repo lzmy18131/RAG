@@ -126,7 +126,8 @@ class CircuitBreaker:
     def allow_request(self) -> bool:
         with self._lock:
             if self.state == self.OPEN:
-                if self._now() - self._opened_at >= self.config.cooldown_seconds:
+                opened_at = self._opened_at or 0.0
+                if self._now() - opened_at >= self.config.cooldown_seconds:
                     self.state = self.HALF_OPEN
                     self._probe_in_flight = True
                     return True
@@ -205,7 +206,7 @@ class Provider:
         try:
             response = client.chat.completions.create(
                 model=self.cfg.model,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]  # OpenAI SDK 消息类型宽泛
                 temperature=temperature,
             )
         except Exception as exc:  # noqa: BLE001 — classify, don't leak SDK types

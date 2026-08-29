@@ -1,0 +1,7 @@
+{
+  "pipeline": "hybrid(bge-like+bm25+rrf)+rerank",
+  "corpus": "data/demo synthetic manual (20 chunks)",
+  "reranker": "demo-lexical-overlap",
+  "embedder": "demo-hash-bow-64d",
+  "top_k": 5
+}

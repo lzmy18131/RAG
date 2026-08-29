@@ -51,7 +51,7 @@ class BM25Retriever:
         scores = self._bm25.get_scores(tokens)
         # Rank all, then filter by doc before truncation (cheap: get_scores is vectorized)
         ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
-        results = []
+        results: list[dict] = []
         for _, (idx, score) in enumerate(ranked, 1):
             if doc_filter is not None and self._metadata[idx].get("source_file", "") != doc_filter:
                 continue

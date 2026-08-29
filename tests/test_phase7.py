@@ -79,8 +79,8 @@ class TestManifestStore:
             store = ManifestStore(store_dir)
             h1 = _sha256("doc1")
             h2 = _sha256("doc2")
-            store.set(DocManifest("/a/doc1.pdf", "id1", h1, 100, 10, 8, 5))
-            store.set(DocManifest("/a/doc2.pdf", "id2", h2, 200, 20, 15, 8))
+            store.upsert(DocManifest("/a/doc1.pdf", "id1", h1, 100, 10, 8, 5))
+            store.upsert(DocManifest("/a/doc2.pdf", "id2", h2, 200, 20, 15, 8))
             store.save()
 
             current = {"/a/doc1.pdf": h1, "/a/doc2.pdf": h2}
@@ -98,7 +98,7 @@ class TestManifestStore:
         try:
             store = ManifestStore(store_dir)
             old_hash = _sha256("old content")
-            store.set(DocManifest("/a/doc1.pdf", "id1", old_hash, 100, 10, 8, 5))
+            store.upsert(DocManifest("/a/doc1.pdf", "id1", old_hash, 100, 10, 8, 5))
             store.save()
 
             new_hash = _sha256("new content")
@@ -115,8 +115,8 @@ class TestManifestStore:
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
-            store.set(DocManifest("/a/doc1.pdf", "id1", _sha256("d1"), 100, 10, 8, 5))
-            store.set(DocManifest("/a/doc2.pdf", "id2", _sha256("d2"), 200, 20, 15, 8))
+            store.upsert(DocManifest("/a/doc1.pdf", "id1", _sha256("d1"), 100, 10, 8, 5))
+            store.upsert(DocManifest("/a/doc2.pdf", "id2", _sha256("d2"), 200, 20, 15, 8))
             store.save()
 
             current = {"/a/doc1.pdf": _sha256("d1")}  # doc2 deleted
@@ -133,9 +133,9 @@ class TestManifestStore:
         store_dir = tempfile.mkdtemp()
         try:
             store = ManifestStore(store_dir)
-            store.set(DocManifest("/a/keep.pdf", "id1", _sha256("keep"), 100, 10, 8, 5))
-            store.set(DocManifest("/a/changed.pdf", "id2", _sha256("old"), 200, 20, 15, 8))
-            store.set(DocManifest("/a/removed.pdf", "id3", _sha256("rem"), 300, 30, 25, 10))
+            store.upsert(DocManifest("/a/keep.pdf", "id1", _sha256("keep"), 100, 10, 8, 5))
+            store.upsert(DocManifest("/a/changed.pdf", "id2", _sha256("old"), 200, 20, 15, 8))
+            store.upsert(DocManifest("/a/removed.pdf", "id3", _sha256("rem"), 300, 30, 25, 10))
             store.save()
 
             current = {
@@ -158,7 +158,7 @@ class TestManifestStore:
         try:
             store = ManifestStore(store_dir)
             h = _sha256("doc1")
-            store.set(DocManifest("/a/doc1.pdf", "id1", h, 100, 10, 8, 5))
+            store.upsert(DocManifest("/a/doc1.pdf", "id1", h, 100, 10, 8, 5))
             store.save()
             assert "/a/doc1.pdf" in store.all_files()
 

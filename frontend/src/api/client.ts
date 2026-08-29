@@ -259,3 +259,122 @@ export async function fetchSystem(): Promise<SystemResponse> {
   if (!res.ok) throw new Error(`Failed: ${res.status}`);
   return res.json();
 }
+
+// ═══════════════════ API v1（Final Pass） ═══════════════════
+
+export interface CitationV1 {
+  chunk_id: string;
+  source_file: string;
+  page: number;
+  content_type: string;
+  content_excerpt: string;
+  dense_score: number | null;
+  bm25_score: number | null;
+  rrf_score: number | null;
+  rerank_score: number | null;
+}
+
+export interface GroundingV1 {
+  status: "supported" | "warning" | "abstained";
+  support_ratio: number | null;
+  unsupported_claims: string[];
+  scorer: string;
+}
+
+export interface UsageV1 {
+  llm_calls: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  model: string | null;
+}
+
+export interface CacheV1 {
+  hit: boolean;
+  source: "exact" | "semantic" | "none";
+  corpus_version: string | null;
+}
+
+export interface QueryResponseV1 {
+  answer: string;
+  status: "answered" | "refused" | "fallback";
+  citations: CitationV1[];
+  sources: Array<Record<string, unknown>>;
+  grounding: GroundingV1;
+  usage: UsageV1;
+  latency: Record<string, number>;
+  cache: CacheV1;
+  request_id: string;
+  trace: {
+    query: string;
+    stages: Record<string, number>;
+    candidates: Array<{
+      chunk_id: string;
+      dense_rank: number | null;
+      bm25_rank: number | null;
+      rrf_score: number | null;
+      rerank_score: number | null;
+      rerank_rank: number | null;
+      ranking_changed: boolean | null;
+    }>;
+  } | null;
+}
+
+export async function queryV1(req: {
+  query: string;
+  top_k?: number;
+  document_ids?: string[] | null;
+  debug?: boolean;
+  cache?: boolean;
+}): Promise<QueryResponseV1> {
+  const res = await fetch(`${BASE}/api/v1/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    let msg = `请求失败 (${res.status})`;
+    try {
+      const d = await res.json();
+      msg = d.error?.message || msg;
+    } catch {
+      /* 非 JSON */
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export interface SystemStatusV1 {
+  demo_mode: boolean;
+  embedding_model: string;
+  reranker_model: string;
+  vector_store: string;
+  corpus_version: string | null;
+  cache: Record<string, unknown> | null;
+  gateway: Record<string, unknown> | null;
+  grounding: Record<string, unknown> | null;
+  llm_configured: boolean;
+  vlm_configured: boolean;
+}
+
+export async function fetchSystemStatusV1(): Promise<SystemStatusV1> {
+  const res = await fetch(`${BASE}/api/v1/system/status`);
+  if (!res.ok) throw new Error(`Failed: ${res.status}`);
+  return res.json();
+}
+
+export interface DocumentItemV1 {
+  document_id: string;
+  source_file: string;
+  version: string;
+  num_chunks: number;
+  pages: number;
+  status: string;
+}
+
+export async function fetchDocumentsV1(): Promise<DocumentItemV1[]> {
+  const res = await fetch(`${BASE}/api/v1/documents`);
+  if (!res.ok) throw new Error(`Failed: ${res.status}`);
+  return (await res.json()).documents;
+}

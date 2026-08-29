@@ -13,5 +13,5 @@ class _FakeChatVertexAI:
     pass
 
 
-_stub.ChatVertexAI = _FakeChatVertexAI
+_stub.ChatVertexAI = _FakeChatVertexAI  # type: ignore[attr-defined]
 sys.modules["langchain_community.chat_models.vertexai"] = _stub

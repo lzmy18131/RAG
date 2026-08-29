@@ -1,17 +1,23 @@
 import { useState } from "react";
-import { fetchQuery } from "../api/client";
-import type { QueryResponse } from "../api/client";
+import { queryV1 } from "../api/client";
+import type { CitationV1, QueryResponseV1 } from "../api/client";
 
 const EXAMPLES = [
   "设备无法开机怎么办？",
   "机器人会不会从楼梯摔下去？",
-  "如何清洁集尘盒？",
+  "如何清理边刷？",
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  answered: { label: "已通过验证", cls: "badge-success" },
-  refused: { label: "已拒答", cls: "badge-warning" },
+  answered: { label: "已回答（已验证）", cls: "badge-success" },
+  refused: { label: "已拒答（证据不足）", cls: "badge-warning" },
   fallback: { label: "降级回答", cls: "badge-warning" },
+};
+
+const GROUNDING_CONFIG: Record<string, { label: string; cls: string }> = {
+  supported: { label: "Supported", cls: "badge-success" },
+  warning: { label: "Warning", cls: "badge-warning" },
+  abstained: { label: "Abstained", cls: "badge-neutral" },
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -22,29 +28,40 @@ const TYPE_ICONS: Record<string, string> = {
 
 export function QAPanel() {
   const [question, setQuestion] = useState("");
-  const [experiment, setExperiment] = useState("v4");
-  const [sourceDocument, setSourceDocument] = useState(""); // "" = 全部说明书
+  const [documentIds, setDocumentIds] = useState<string[]>([]);
+  const [debug, setDebug] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [aborted, setAborted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<QueryResponse | null>(null);
+  const [result, setResult] = useState<QueryResponseV1 | null>(null);
+  const [expandedCitation, setExpandedCitation] = useState<string | null>(null);
 
   const doSubmit = async (q: string) => {
     if (!q.trim()) return;
     setError(null);
     setResult(null);
+    setExpandedCitation(null);
     setLoading(true);
+    setAborted(false);
     try {
-      const data = await fetchQuery({
-        question: q,
-        experiment,
-        source_document: sourceDocument || undefined,
+      const data = await queryV1({
+        query: q,
+        top_k: 5,
+        document_ids: documentIds.length ? documentIds : null,
+        debug,
+        cache: true,
       });
-      setResult(data);
+      if (!aborted) setResult(data);
     } catch (e: any) {
-      setError(e.message || "请求失败");
+      if (!aborted) setError(e.message || "请求失败");
     } finally {
-      setLoading(false);
+      if (!aborted) setLoading(false);
     }
+  };
+
+  const stop = () => {
+    setAborted(true);
+    setLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -54,14 +71,20 @@ export function QAPanel() {
     }
   };
 
-  const statusCfg = result ? (STATUS_CONFIG[result.final_status] || { label: result.final_status, cls: "badge-neutral" }) : null;
+  const statusCfg = result ? STATUS_CONFIG[result.status] || { label: result.status, cls: "badge-neutral" } : null;
+  const groundingCfg = result ? GROUNDING_CONFIG[result.grounding.status] || { label: result.grounding.status, cls: "badge-neutral" } : null;
 
   return (
     <div>
       <h1 className="mb-3">维保问答</h1>
       <p className="section-subtitle">
-        LangGraph 可信问答：Hybrid Retrieval → Reranker → 生成 → V6 句级接地验证 → 引用答案（V9 语义缓存加速）
+        Hybrid Retrieval → Reranker → 生成 → 确定性接地 → 引用验证（v1 管线；语义缓存加速）
       </p>
+
+      {/* DEMO MODE 横幅（Demo 模式可见；真实模式不显示） */}
+      <div className="demo-banner" style={{ marginBottom: 12 }}>
+        DEMO MODE · 演示输出（合成语料 + 确定性模型），非真实维修结论
+      </div>
 
       {/* Input area */}
       <div className="card mb-4">
@@ -70,10 +93,10 @@ export function QAPanel() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题，例如：设备无法开机怎么办？"
+          placeholder="输入问题，例如：故障码 E01 是什么意思？"
           rows={3}
         />
-        <div className="flex-row mt-3" style={{ flexWrap: "wrap" }}>
+        <div className="flex-row mt-3" style={{ flexWrap: "wrap", gap: 8 }}>
           <button
             className="btn btn-primary"
             onClick={() => doSubmit(question)}
@@ -81,25 +104,25 @@ export function QAPanel() {
           >
             {loading ? "查询中..." : "提交问题"}
           </button>
+          {loading && (
+            <button className="btn btn-danger" onClick={stop}>
+              ⏹ 停止
+            </button>
+          )}
           <select
             className="select"
-            value={sourceDocument}
-            onChange={(e) => setSourceDocument(e.target.value)}
-            title="限定检索到单本说明书（V8 doc_filter）"
+            value={documentIds.length ? documentIds[0] : ""}
+            onChange={(e) => setDocumentIds(e.target.value ? [e.target.value] : [])}
+            title="限定检索到单本说明书（document_ids 过滤）"
           >
-            <option value="">📚 全部说明书</option>
+            <option value="">📚 全部文档</option>
             <option value="Roborock G10S">Roborock G10S</option>
             <option value="Ecovacs DEEBOT T30C">Ecovacs DEEBOT T30C</option>
           </select>
-          <select
-            className="select"
-            value={experiment}
-            onChange={(e) => setExperiment(e.target.value)}
-          >
-            <option value="v4">v4 (LangGraph)</option>
-            <option value="v3">v3 (Reranker)</option>
-            <option value="v2">v2 (Hybrid)</option>
-          </select>
+          <label className="muted" style={{ fontSize: "var(--text-sm)", display: "inline-flex", gap: 4, alignItems: "center" }}>
+            <input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} />
+            Developer（检索 trace）
+          </label>
         </div>
       </div>
 
@@ -109,11 +132,7 @@ export function QAPanel() {
           <div className="muted mb-3" style={{ fontSize: "var(--text-sm)" }}>示例问题：</div>
           <div className="tag-row">
             {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                className="btn btn-ghost btn-sm"
-                onClick={() => { setQuestion(ex); doSubmit(ex); }}
-              >
+              <button key={ex} className="btn btn-ghost btn-sm" onClick={() => { setQuestion(ex); doSubmit(ex); }}>
                 {ex}
               </button>
             ))}
@@ -121,118 +140,136 @@ export function QAPanel() {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="error-box mb-4">
           <strong>请求失败：</strong>{error}
-          <div style={{ fontSize: "var(--text-sm)", marginTop: 4 }}>请确认后端服务已启动：uvicorn main:app --host 127.0.0.1 --port 8000</div>
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
         <div className="empty-state" style={{ padding: 40 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
           <div>正在检索并生成答案，请稍候...</div>
-          <div className="muted mt-1" style={{ fontSize: "var(--text-xs)" }}>通常需要 20–40 秒</div>
+          <button className="btn btn-sm mt-3" onClick={stop}>停止生成</button>
         </div>
       )}
 
-      {/* Result */}
       {result && (
         <div>
-          {/* Status + timing */}
           <div className="flex-between mb-4">
-            <span className={`badge ${statusCfg?.cls || "badge-neutral"}`}>
-              {statusCfg?.label || result.final_status}
-            </span>
+            <span className={`badge ${statusCfg?.cls || ""}`}>{statusCfg?.label}</span>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              {result.cache_hit && (
-                <span className="badge badge-success">⚡ 缓存命中 {result.cache_source === "semantic" ? "(语义)" : ""}</span>
+              {result.cache.hit && (
+                <span className="badge badge-success">
+                  ⚡ 缓存命中 {result.cache.source === "semantic" ? "(语义)" : "(精确)"}
+                </span>
               )}
+              <span className={`badge ${groundingCfg?.cls || ""}`}>
+                Grounding: {groundingCfg?.label}
+              </span>
               <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
-                耗时 {result.timing_s}s{result.cache_hit ? "（缓存，~50ms 级）" : ""}
+                耗时 {(result.latency.total_ms / 1000).toFixed(2)}s
               </span>
             </div>
           </div>
 
-          {/* Answer */}
           <div className="card mb-3" style={{ lineHeight: "var(--leading-relaxed)", whiteSpace: "pre-wrap", fontSize: "var(--text-md)" }}>
             {result.answer}
           </div>
 
-          {/* Verification */}
+          {/* Grounding */}
           <div className="card card-sm mb-4">
             <div style={{ fontWeight: 600, marginBottom: 8, fontSize: "var(--text-md)" }}>验证结果</div>
             <div className="flex-row" style={{ gap: 24, flexWrap: "wrap" }}>
               <div>
-                <span className="muted">supported: </span>
-                <span style={{
-                  fontWeight: 600,
-                  color: result.verification.supported ? "var(--color-success)" : "var(--color-error)",
-                }}>
-                  {String(result.verification.supported)}
-                </span>
+                <span className="muted">grounding: </span>
+                <span style={{ fontWeight: 600 }}>{result.grounding.status}</span>
               </div>
-              <div>
-                <span className="muted">confidence: </span>
-                <span style={{ fontWeight: 600 }}>{(result.verification.confidence * 100).toFixed(0)}%</span>
-              </div>
-              {result.verification.grounding_meta && (
+              {result.grounding.support_ratio != null && (
                 <div>
-                  <span className="muted">句级支撑: </span>
-                  <span style={{ fontWeight: 600 }}>
-                    {result.verification.grounding_meta.n_supported ?? 0}/{result.verification.grounding_meta.n_sentences ?? 0} 句
-                    <span className="muted ml-2" style={{ fontSize: "var(--text-xs)" }}>
-                      {result.verification.grounding_meta.scorer === "cross_encoder" ? "交叉编码器" : "余弦"}
-                    </span>
-                  </span>
+                  <span className="muted">支撑率: </span>
+                  <span style={{ fontWeight: 600 }}>{(result.grounding.support_ratio * 100).toFixed(0)}%</span>
                 </div>
               )}
-            </div>
-            {result.verification.reason && (
-              <div className="mt-3" style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
-                {result.verification.reason}
+              <div>
+                <span className="muted">scorer: </span>
+                <span style={{ fontWeight: 600 }}>{result.grounding.scorer}</span>
               </div>
-            )}
-            {result.verification.unsupported_claims && result.verification.unsupported_claims.length > 0 && (
+            </div>
+            {result.grounding.unsupported_claims.length > 0 && (
               <div className="mt-3">
                 <div className="muted" style={{ fontSize: "var(--text-sm)", marginBottom: 4 }}>
-                  无支撑句子（{result.verification.unsupported_claims.length}）：
+                  无支撑句子（{result.grounding.unsupported_claims.length}）：
                 </div>
-                {result.verification.unsupported_claims.map((c, i) => (
+                {result.grounding.unsupported_claims.map((c, i) => (
                   <div key={i} style={{ color: "var(--color-error)", fontSize: "var(--text-sm)" }}>• {c}</div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Sources */}
+          {/* Citations（由系统计算，点击展开 excerpt） */}
           <div style={{ fontWeight: 600, marginBottom: 8, fontSize: "var(--text-md)" }}>
-            来源 ({result.sources.length})
+            引用（{result.citations.length}）— 由系统从检索结果计算
           </div>
           <div style={{ display: "grid", gap: 8 }}>
-            {result.sources.map((s, i) => (
-              <div key={i} className="card card-sm" style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 22 }}>{TYPE_ICONS[s.content_type] || "📄"}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: "var(--text-base)" }}>
-                    {s.source_file || "unknown"}
-                    <span className="ml-2 muted" style={{ fontSize: "var(--text-xs)" }}>
-                      第{s.page_number}页
+            {result.citations.map((c: CitationV1) => (
+              <div key={c.chunk_id} className="card card-sm">
+                <button
+                  className="citation-toggle"
+                  onClick={() => setExpandedCitation(expandedCitation === c.chunk_id ? null : c.chunk_id)}
+                  style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: 18 }}>{TYPE_ICONS[c.content_type] || "📄"}</span>{" "}
+                  <strong>{c.source_file.split("/").pop()}</strong>
+                  <span className="ml-2 muted" style={{ fontSize: "var(--text-xs)" }}>第{c.page}页 · ID {c.chunk_id}</span>
+                  {c.rerank_score != null && (
+                    <span className="ml-2 muted mono" style={{ fontSize: "var(--text-xs)" }}>
+                      rerank {c.rerank_score.toFixed(4)}
                     </span>
+                  )}
+                </button>
+                {expandedCitation === c.chunk_id && (
+                  <div className="mt-2" style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
+                    {c.content_excerpt}
+                    <div className="flex-row mt-2" style={{ gap: 12, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
+                      <span>dense {c.dense_score ?? "-"}</span>
+                      <span>bm25 {c.bm25_score ?? "-"}</span>
+                      <span>rrf {c.rrf_score ?? "-"}</span>
+                    </div>
                   </div>
-                  <div className="flex-row mt-1" style={{ gap: 16, fontSize: "var(--text-xs)", color: "var(--color-text-muted)" }}>
-                    <span>类型: {s.content_type}</span>
-                    <span className="mono">ID: {s.chunk_id.slice(0, 12)}...</span>
-                    {s.rerank_score != null && (
-                      <span>rerank: {s.rerank_score.toFixed(4)}</span>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
+
+          {/* Evidence Panel（developer mode：证明 hybrid 检索真实） */}
+          {result.trace && (
+            <div className="card card-sm mt-4">
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: "var(--text-md)" }}>
+                Evidence Panel（developer）— Dense/BM25/RRF/Rerank
+              </div>
+              <table style={{ width: "100%", fontSize: "var(--text-xs)" }}>
+                <thead>
+                  <tr style={{ textAlign: "left" }}>
+                    <th>chunk</th><th>dense_rank</th><th>bm25_rank</th><th>rrf</th><th>rerank</th><th>changed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.trace.candidates.map((cand) => (
+                    <tr key={cand.chunk_id}>
+                      <td className="mono">{cand.chunk_id}</td>
+                      <td>{cand.dense_rank ?? "-"}</td>
+                      <td>{cand.bm25_rank ?? "-"}</td>
+                      <td>{cand.rrf_score?.toFixed(4) ?? "-"}</td>
+                      <td>{cand.rerank_score?.toFixed(4) ?? "-"}</td>
+                      <td>{cand.ranking_changed ? "✓" : cand.ranking_changed === false ? "—" : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

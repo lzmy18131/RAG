@@ -63,7 +63,7 @@ async def query_v1(req: QueryRequest, request: Request):
     )
     return QueryResponse(
         answer=result.answer,
-        status=result.status,
+        status=result.status,  # type: ignore[arg-type]  # service 层 str → schema Literal
         citations=result.citations,
         sources=result.sources,
         grounding=result.grounding,
@@ -156,7 +156,7 @@ async def query_stream_v1(req: QueryRequest, request: Request):
                 result = detail["result"]
                 payload = QueryResponse(
                     answer=result.answer,
-                    status=result.status,
+                    status=result.status,  # type: ignore[arg-type]  # service 层 str → schema Literal
                     citations=result.citations,
                     sources=result.sources,
                     grounding=result.grounding,

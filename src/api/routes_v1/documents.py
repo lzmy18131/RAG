@@ -38,7 +38,7 @@ async def list_documents_v1():
         )
 
     store = ManifestStore(PROJECT_ROOT / "storage" / "manifests")
-    docs = []
+    docs: list[DocumentItem] = []
     for source_file in sorted(store.all_files()):
         m = store.get(source_file)
         if m:
@@ -136,7 +136,7 @@ async def delete_document_v1(document_id: str):
     from src.ingestion.manifest import ManifestStore
 
     store = ManifestStore(PROJECT_ROOT / "storage" / "manifests")
-    target = None
+    target: str | None = None
     for f in store.all_files():
         m = store.get(f)
         if m and m.document_id == document_id:

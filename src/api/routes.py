@@ -23,6 +23,21 @@ from src.api.deps import (
 router = APIRouter()
 
 
+def _find_run_dir(run_id: str) -> Path | None:
+    """统一实验产物目录（任务书 §46）：runs/ 优先，storage/runs/ 仅作 legacy 回退。
+
+    runs/ → evaluation artifacts（Experiment Registry 写入目录）
+    storage/ → runtime state（旧 artifact 只读回退）
+    """
+    primary = PROJECT_ROOT / "runs" / run_id
+    if primary.exists():
+        return primary
+    legacy = PROJECT_ROOT / "storage" / "runs" / run_id
+    if legacy.exists():
+        return legacy
+    return None
+
+
 # ═══════════════════ Models ═══════════════════
 
 
@@ -184,11 +199,26 @@ async def ingest(file: UploadFile = File(...)):
 
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents():
-    """Return all tracked documents from the manifest store."""
+    """Return all tracked documents from the manifest store（demo 模式返回内置合成语料）。"""
+    settings = get_settings()
+    if settings.demo_mode:
+        from src.infra.demo import DEMO_CORPUS
+
+        return DocumentListResponse(
+            documents=[
+                DocumentItem(
+                    document_id="demo-manual",
+                    source_file="x1-manual.pdf",
+                    version="demo-v1",
+                    num_chunks=len(DEMO_CORPUS),
+                    status="indexed",
+                )
+            ]
+        )
     from src.ingestion.manifest import ManifestStore
 
     store = ManifestStore(PROJECT_ROOT / "storage" / "manifests")
-    docs = []
+    docs: list[DocumentItem] = []
     for source_file in sorted(store.all_files()):
         m = store.get(source_file)
         if m:
@@ -335,7 +365,7 @@ async def version_highlights():
     v6_meta = _load_metrics(v6_dir / "metadata.json")
     v6_poison = _load_metrics(v6_dir / "poison_test.json")
     if v6_meta is None and v6_poison is None:
-        v6: dict = _no_run()
+        v6: dict[str, Any] = _no_run()
     else:
         # 历史 artifact：本 refactor 后未重跑 → 明确标注
         v6 = {
@@ -376,7 +406,7 @@ async def version_highlights():
     v8_path = PROJECT_ROOT / "storage" / "runs" / "final_eval_extended_full" / "final_metrics.json"
     v8_data = _load_metrics(v8_path)
     if v8_data is None:
-        v8: dict = _no_run()
+        v8: dict[str, Any] = _no_run()
     else:
         rm = (v8_data.get("versions") or {}).get("V3", {}).get("retrieval_metrics", {})
         v8 = {
@@ -396,7 +426,7 @@ async def version_highlights():
     v9_path = PROJECT_ROOT / "storage" / "runs" / "v9_cache" / "cache_eval.json"
     v9_data = _load_metrics(v9_path)
     if v9_data is None:
-        v9: dict = _no_run()
+        v9: dict[str, Any] = _no_run()
     else:
         v9 = {
             "available": True,
@@ -426,8 +456,8 @@ async def version_highlights():
 @router.post("/evaluate")
 async def evaluate(req: EvaluateRequest):
     """Return existing cached metrics for the given experiment."""
-    runs_dir = PROJECT_ROOT / "storage" / "runs" / req.experiment
-    if not runs_dir.exists():
+    runs_dir = _find_run_dir(req.experiment)
+    if runs_dir is None:
         raise HTTPException(404, f"Experiment not found: {req.experiment}")
 
     # Gather all metrics from JSON files
@@ -467,8 +497,13 @@ async def evaluate(req: EvaluateRequest):
 @router.get("/final_eval")
 async def get_final_eval():
     """Return the final evaluation metrics (V0-V4 with RAGAS)."""
-    final_path = PROJECT_ROOT / "storage" / "runs" / "final_eval" / "final_metrics.json"
-    if not final_path.exists():
+    final_path = None
+    for base in (PROJECT_ROOT / "runs", PROJECT_ROOT / "storage" / "runs"):
+        p = base / "final_eval" / "final_metrics.json"
+        if p.exists():
+            final_path = p
+            break
+    if final_path is None:
         raise HTTPException(404, "Final evaluation not found")
     with open(final_path, encoding="utf-8") as f:
         return json.load(f)
@@ -477,10 +512,12 @@ async def get_final_eval():
 @router.get("/experiments")
 async def list_experiments():
     """Return all available experiment versions."""
-    runs_dir = PROJECT_ROOT / "storage" / "runs"
+    runs_dir = _find_run_dir("") or PROJECT_ROOT / "runs"
+    if not runs_dir.exists():
+        runs_dir = PROJECT_ROOT / "storage" / "runs"
     # Also check root-level files for V1/V2
     root_files = {f.name for f in runs_dir.iterdir() if f.is_file() and f.suffix == ".json"}
-    exp_defs = [
+    exp_defs: list[dict[str, Any]] = [
         {
             "id": "v0_baseline",
             "name": "V0 Baseline",
@@ -587,8 +624,9 @@ def _extract_metrics(data: dict, prefix: str = "") -> dict:
 @router.get("/experiments/{exp_id}")
 async def get_experiment(exp_id: str):
     """Read existing experiment metadata and metrics."""
-    runs_dir = PROJECT_ROOT / "storage" / "runs" / exp_id
-    root_runs = PROJECT_ROOT / "storage" / "runs"
+    found = _find_run_dir(exp_id)
+    runs_dir = found if found is not None else PROJECT_ROOT / "storage" / "runs" / exp_id
+    root_runs = _find_run_dir("") or PROJECT_ROOT / "storage" / "runs"
 
     # Map V1/V2 to their root-level files
     root_file_map = {
@@ -603,7 +641,7 @@ async def get_experiment(exp_id: str):
     all_metrics: dict[str, float] = {}
 
     # Read from subdirectory if exists
-    sources = []
+    sources: list[str] = []
     if runs_dir.exists():
         sources.extend(str(f) for f in sorted(runs_dir.iterdir()) if f.suffix == ".json")
     # Also read root-level files for V1/V2

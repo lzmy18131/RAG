@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os as _os
+from typing import Any
 
 _os.environ.setdefault("MILVUS_URI", "http://localhost:19530")
 
@@ -36,7 +37,7 @@ class DenseRetriever:
         self,
         collection_name: str = "v0_naive_rag",
         uri: str | None = None,
-        embedder: Embedder | None = None,
+        embedder: Any = None,
         client: MilvusClient | None = None,
     ):
         self.collection_name = collection_name

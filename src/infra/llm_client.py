@@ -3,6 +3,7 @@
 from openai import OpenAI
 
 from src.config.settings import settings
+from src.infra.gateway import LLMGateway
 
 
 class LLMClient:
@@ -19,7 +20,7 @@ class LLMClient:
         self.api_key = api_key or settings.llm_api_key
         self.model = model or settings.llm_model
         self._client: OpenAI | None = None
-        self._single_gateway = None
+        self._single_gateway: LLMGateway | None = None
 
     def _single_gw(self):
         """Private gateway for explicit-arg instances (isolated circuit state)."""
@@ -27,7 +28,9 @@ class LLMClient:
 
         if self._single_gateway is None:
             cfg = ProviderConfig("custom", self.base_url, self.api_key, self.model)
-            self._single_gateway = LLMGateway(providers=[Provider(cfg)])
+            gateway = LLMGateway(providers=[Provider(cfg)])
+            self._single_gateway = gateway
+        assert self._single_gateway is not None
         return self._single_gateway
 
     @property

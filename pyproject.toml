@@ -95,7 +95,7 @@ show_missing = true
 skip_covered = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 files = ["src"]
 exclude = [
     # 第三方/可选依赖类型缺失，按模块忽略（见 docs/FINAL_ENGINEERING_REPORT.md）

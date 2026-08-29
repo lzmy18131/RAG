@@ -36,5 +36,5 @@ class Reranker:
         if self._model is None:
             raise RuntimeError("Model not loaded. Call load() first.")
         pairs = [[query, doc] for doc in documents]
-        scores = self._model.predict(pairs)
+        scores = self._model.predict(pairs)  # type: ignore[arg-type]  # sentence-transformers stub 过宽
         return scores.tolist() if hasattr(scores, "tolist") else list(scores)

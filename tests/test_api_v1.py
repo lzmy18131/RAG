@@ -6,7 +6,6 @@ Demo 模式运行（无 API key / GPU）。
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -153,7 +152,7 @@ class TestCancellation:
 
         qmod._build_service = _fake_build
         try:
-            with client.stream("POST", "/api/v1/query/stream", json={"query": "故障码 E01"}) as resp:
+            with client.stream("POST", "/api/v1/query/stream", json={"query": "故障码 E01"}) as _resp:
                 # 客户端立即断开 → 生成器被取消
                 pass
         finally:

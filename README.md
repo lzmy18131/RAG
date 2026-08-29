@@ -1,329 +1,202 @@
-# 多模态 RAG 智能硬件维保助手
+# 多模态可信 RAG 智能硬件维保知识助手
 
-基于 BGE-M3 + BM25 Hybrid Retrieval + BGE-Reranker + LangGraph 验证的多模态可信问答系统。
+**Production-style Multimodal RAG & Evaluation System**
 
-一个陌生人走进来就能看懂的完整项目介绍。
+基于 **BGE-M3 Dense + BM25 Hybrid Retrieval + RRF 融合 + Cross-Encoder Reranker + 确定性 Grounding + Citation Validation + Semantic Cache** 的多模态 RAG 应用，配套完整 Evaluation / Experiment Registry / Observability / CI / Docker / Demo Mode。
 
----
-
-## 一、这个项目是干什么的？
-
-你买了一个扫地机器人，附赠一本 27 页的 PDF 说明书。某天它坏了，你在说明书里翻来翻去找答案——很烦。
-
-这个系统做的事：**你对着它用大白话问一个问题，它自动去说明书里找到相关段落，基于原文生成答案，并告诉你答案出自哪一页。如果说明书里没有答案，它会直接说"不知道"，绝不编造。**
-
-比如：
-
-> **你问**：「机器人会不会从楼梯摔下去？」
->
-> **系统答**：「设备配备悬崖传感器，可自动检测高度差并转向，防止从楼梯跌落。——来源：说明书第6页」
+> ⚠️ 本项目为 AI Application / RAG Engineering 实践项目，输出仅供参考，**不构成设备维修或医疗建议**。
 
 ---
 
-## 二、核心能力
+## Hero
 
-| 能力 | 说明 |
-|---|---|
-| 多模态检索 | 文本、表格、图片三种内容统一进入同一个向量空间，用同一句话检索 |
-| 双通道混合检索 | BGE-M3 语义匹配 + BM25 关键词匹配，RRF 融合，互补长短 |
-| 精排重排 | BGE-Reranker-v2-m3 逐对精读打分，把最相关的内容排到最前面 |
-| 可信验证 | LangGraph 验证节点检查答案是否基于原文，证据不足就拒答或重试 |
-| 增量更新 | SHA256 文件指纹检测变化，没变的文档跳过所有计算，零浪费 |
-| 实验可复现 | 100 条 Golden Dataset 固定不变，V0-V4 控制变量实验；V6/V7/V9 通过专项测试和故障注入验证 |
-| 多文档 + 元数据过滤 | 双说明书（Roborock 中文 + Ecovacs 英文）同库，检索按 source_file 过滤隔离；Ecovacs 跨语言检索 MRR 0.90，8 新图片题检索全中 |
-| 语义缓存 | /query 两级缓存（精确 SHA256 + 语义余弦），重复/相似问题命中后 ~31ms 返回（全管线 ~20s+），省 LLM 调用 |
+![LingYi RAG Demo（DEMO MODE）](docs/screenshots/demo-qa.png)
 
----
+> 真实 UI 截图（DEMO Mode 下问答：答案 + 引用 + Grounding 徽章 + DEMO 标记）。
 
-## 三、技术栈
+## Key Engineering Metrics（当前 commit 实测）
 
-```
-语言:       Python 3.11+
-后端框架:   FastAPI
-前端:       React 19 + TypeScript + Vite
-流程编排:   LangGraph StateGraph
+| Metric | Result |
+|---|---:|
+| Backend tests（离线子集） | **273 passed** |
+| Backend coverage（branch） | **77%**（gate=70） |
+| Typecheck（mypy） | **0 errors**（54 files） |
+| ruff check / format | ✅ |
+| Frontend unit tests（Vitest+RTL） | **7 passed** |
+| Playwright E2E（Demo Mode） | **7 scenarios** |
+| Demo retrieval benchmark（Recall@5 / MRR / nDCG@5） | **0.9167 / 0.9167 / 0.8792** |
+| Semantic cache（exact hit / false-hit rate） | **12/12 / 0.0** |
+| Critical modules coverage | retrieval 86~89% · grounding 92% · cache 94% · gateway 84% |
 
-Embedding:   BGE-M3 (本地 GPU, 1024 维)
-Reranker:    BGE-Reranker-v2-m3 (本地 GPU)
-向量数据库:  Milvus Lite (本地文件模式)
-关键词检索:  BM25 (jieba 分词 + rank_bm25)
-LLM:        DeepSeek V4 Flash (API)
-VLM:        Qwen3-VL-32B (API, 图片语义描述)
-PDF 解析:   PyMuPDF
-评测框架:   RAGAS 0.4.3
-
-GPU:        NVIDIA RTX 4060 Laptop (8 GB)
-```
+> 全部数字来自当前 commit 真实执行（`docs/CURRENT_RESUME_METRICS.md` 记录 commit/run_id）。
+> 历史 V0–V9 benchmark 见 [Historical Results](#historical-results-v0v9)（重构后**未重跑**，标注 NOT VERIFIED AFTER REFACTOR）。
 
 ---
 
-## 四、架构概览
+## 核心架构
 
-```
-                         ┌──────────────┐
-                         │  React 前端   │
-                         │  仪表盘/问答   │
-                         │  知识库/实验   │
-                         └──────┬───────┘
-                                │ HTTP
-                         ┌──────▼───────┐
-                         │   FastAPI    │
-                         │  后端 API    │
-                         └──────┬───────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-     ┌────────▼───────┐ ┌──────▼──────┐ ┌───────▼──────┐
-     │   离线处理链路   │ │  在线检索    │ │   评测系统    │
-     │               │ │             │ │              │
-     │ PDF → 文本     │ │ Hybrid 粗筛 │ │ 100条 Dataset│
-     │ + 图片VLM描述  │ │ + Rerank    │ │ RAGAS 指标   │
-     │ → Chunk 切片   │ │ + Verify    │ │ 控制变量实验  │
-     │ → BGE-M3 向量  │ │ → LLM 生成  │ │              │
-     │ → Milvus+BM25  │ │             │ │              │
-     └────────────────┘ └─────────────┘ └──────────────┘
+```text
+User (React 19 + Vite)
+   │ HTTP / SSE
+   ▼
+FastAPI (RequestID / 统一错误 envelope / Prometheus /metrics)
+   │
+   ▼
+RAGService (src/api/services/rag_service.py — 分阶段计时 + SSE stage 事件)
+   │
+   ├─ SemanticCache (exact SHA256 + BGE-M3 cosine, corpus_version + schema_version salt)
+   │
+   ▼
+RerankedRetriever (二阶段)
+   ├─ Stage1 HybridRetriever: BGE-M3 Dense + BM25 (jieba) → RRF 融合 (top-20)
+   ├─ Stage2 Cross-Encoder Reranker (BGE-Reranker-v2-m3) → top-5
+   ▼
+Generator (LLM, Prompt Registry + 注入防御 <untrusted>)
+   ▼
+GroundingVerifier (句级 Cross-Encoder 确定性接地)
+   ▼
+Citation Validator（引用由系统从真实检索结果计算，非 LLM 声称）
+   ▼
+Cite-or-Abstain（answered / refused）
 ```
 
----
+## Hybrid Retrieval（为什么这样设计）
 
-## 五、技术演进：V0 → V9
+- **BGE-M3（Bi-Encoder）**：语义近似（"无法开机" ↔ "电源故障"），query 与 doc 独立编码 → 可预计算向量 → 快。
+- **BM25（Sparse，jieba 分词）**：精确术语（"PTC"、"E07"、型号名）在向量空间会被稀释，关键词匹配是硬需求。
+- **RRF 融合**：`score = Σ 1/(k + rank)`，只看排名不看分数 → 不需要归一化 dense cosine 与 BM25 无界频率分（量纲不同不能直接相加）。k=60 偏向"两路都靠前"的项。
+- **Cross-Encoder Reranker（Stage 2）**：query+doc 拼接联合编码 → 精确但慢 → 只对 top-20 精排取 top-5（质量-延迟 Pareto）。
 
-每个版本解决朴素 RAG 的一个痛点，每个版本的效果提升都有数据支撑。
+参数全部配置化（`retrieval_rrf_k / dense_top_k / bm25_top_k / rerank_candidate_k / final_top_k`），无 magic number。
 
-| 版本 | 做了什么 | 解决了什么问题 | 核心指标提升 |
-|---|---|---|---|
-| **V0** Baseline | PDF 文字提取 → BGE-M3 Dense 检索 → LLM 引用回答 | 关键词搜索太笨，"无法开机"搜不到"电源故障" | Recall@5 0.89 |
-| **V1** +多模态 | 6 页图片调用 Qwen3-VL 看图说话 → 统一进入向量空间 | 说明书图片里的信息（传感器位置图等）之前完全搜不到 | 首次覆盖图片问题 |
-| **V2** +Hybrid | BM25 关键词 + BGE-M3 语义双通道，RRF 融合排名 | 冷门术语（PTC、E07）纯语义检索会漏掉 | MRR **0.76→0.84** (+10.5%) |
-| **V3** +Reranker | Hybrid 粗筛 20 条 → BGE-Reranker 逐对精读打分 → 取前 5 | 粗筛排序不够精确，最相关的内容可能排在第 3-5 名 | Recall@5 **0.88→0.91**，Context Precision **0.76→0.87** |
-| **V4** +Verify | LangGraph 验证节点：逐条核对答案是否基于原文 → 拒答/重试 | LLM 还是会编造细节，"买原装配件199元"原文根本没有 | 越界问题正确拒答，Context Recall 0.88 |
-| **V5** +增量 | SHA256 文件指纹 → 区分 added/unchanged/modified/deleted | 说明书换新版要全部重新处理，浪费算力 | 未变化文档 0 次 Embedding |
-| **V6** +确定性接地 | 答案拆句 + BGE-Reranker 交叉编码器逐句核对 → 无支撑句子拒答/重试 + 引用审计 | V4 的验证靠 LLM"自查"不可复现 | 引用由系统"计算"而非 LLM"声称"；投毒测试拦截 82% 编造句（余弦为 0%） |
-| **V7** +LLM Gateway | 超时、指数退避重试、熔断、Provider 故障转移和统一兜底 | 外部模型服务不稳定会阻塞或导致问答失败 | 故障注入覆盖重试、熔断、failover 和 fallback |
-| **V8** +多文档扩展 | 第二本说明书、文档级过滤、跨语言问题和新增图片问题 | 多说明书场景下来源混淆、页码冲突和图片覆盖不足 | 123 题 retrieval-only：V3/V4 Hit@5 0.9756、MRR 0.8916 |
-| **V9** +语义缓存 | SHA256 精确缓存 + BGE-M3 语义缓存 + SQLite 持久化 | 重复或近似问题重复调用大模型、延迟高 | 精确命中 12/12，命中延迟约 31ms，节省 12 次 LLM 调用 |
+## Grounding / Citation / Abstain
 
----
+- **Grounding**：答案拆句 → 每句与检索 chunk 用 Cross-Encoder 联合打分 → 无支撑句子标记。文档诚实声明：这是 **deterministic relevance-based grounding**，`relevance ≠ entailment`——交叉编码器拦不住"主题相关但编造"（Frankenstein 边界），不是"彻底解决幻觉"。
+- **Threshold 由校准数据决定**：`scripts/calibrate_grounding.py` 输出 threshold→precision/recall/F1/abstain/coverage 曲线，不拍脑袋选阈值。
+- **Cite-or-Abstain**：输出状态 `ANSWER / ANSWER_WITH_WARNING / ABSTAIN`（前端展示 Supported / Warning / Abstained）。证据不足 → 拒答，不硬答。
+- **Citation Validator**：引用（chunk_id/source/page）由系统从**真实检索结果**计算，不允许 LLM 自行写页码 → 不存在"引用第 37 页但第 37 页不存在"。
 
-## 六、核心评测指标
+## Evaluation & Experimentation
 
-基于 100 条固定 Golden Dataset（覆盖故障排查、日常维护、功能询问、初始设置），V0-V4 最终评测结果：
+- **统一指标模块**（`src/eval/retrieval_metrics.py`）：Recall@K / HitRate@K / Precision@K / MRR / nDCG@K（K∈{1,3,5,10,20}），禁止散落脚本各算各的。
+- **Generation 指标**：Faithfulness / Answer Relevancy / Context Precision / Context Recall / Citation Correctness / Citation Completeness / Refusal Accuracy（区分 deterministic 与 LLM-as-Judge）。
+- **统计检验**：Bootstrap 95% CI + McNemar 配对比较——0.858 → 0.861 不宣称"显著提升"。
+- **Failure Taxonomy**：12 类确定性归因（RETRIEVAL_MISS / RERANKER_REGRESSION / CACHE_FALSE_HIT / GENERATION_HALLUCINATION…），输出 failures.jsonl。
+- **Experiment Registry**（`runs/<run_id>/`）：config / metadata（git_commit、dataset_version、dataset_hash、corpus_version、模型、prompt_version）/ metrics / failures / report。README 每个 benchmark 可追溯 run_id。
+- **Ablation**：`scripts/ablation.py` 汇总 Dense / Hybrid / Hybrid+Rerank 的 Recall@5 / MRR / nDCG / Faithfulness / Citation / p50 / p95 / tokens / cost。
+- **防 leakage**：calibration/dev 与 test split 分离，禁止用 test set 反复调参（README 明示）。
 
-> 说明：下表是 100 题正式 RAGAS 评测。另有 123 题 `golden_extended.json` 多文档扩展集，但当前只完成 retrieval-only 评测，不与下表的 RAGAS 指标混合。
+### Current Verified Benchmark（demo corpus，run `demo_retrieval_v1`）
 
-| 指标 | V0 | V1 | V2 | V3 | V4 |
-|---|---|---|---|---|---|
-| **Recall@5** | 0.8900 | 0.8142 | 0.8775 | **0.9092** | 0.9092 |
-| **MRR** | 0.7587 | 0.7288 | 0.8373 | **0.8583** | 0.8583 |
-| **Top-1 Hit** | 0.64 | 0.67 | 0.79 | **0.81** | 0.81 |
-| **Faithfulness** | 0.9217 | 0.8799 | 0.9239 | **0.9533** | 0.8994 |
-| **Context Precision** | 0.6949 | 0.6824 | 0.7624 | **0.8662** | 0.8525 |
-| **Context Recall** | 0.8214 | 0.7727 | 0.8337 | 0.8698 | **0.8758** |
-| **Answer Relevancy** | 0.91 | 0.84 | 0.90 | **0.92** | 0.91 |
-| **平均延迟** | 3.2s | 3.2s | 3.3s | 20.5s | 16.7s |
+| Pipeline | Recall@5 | MRR | nDCG@5 | 说明 |
+|---|---:|---:|---:|---|
+| Demo Hybrid + Rerank（合成语料，12 题） | **0.9167** | **0.9167** | **0.8792** | 确定性可复现（CI 离线回归） |
 
-### V6 确定性接地验证（句级）
+> 真实 BGE-M3/Milvus/LLM benchmark 需 GPU + 模型权重 + API key（见 Known Limitations；`scripts/final_evaluation.py`）。
 
-| 指标 | V6 |
-|---|---|
-| 全量 100 题 answered | **95/100** |
-| 边界题 refused（火星/核聚变） | **2/2** |
-| 句级支撑率 | **99.35%**（avg support_ratio） |
-| 交叉编码器分数 | median 0.95（真实句） |
-| 投毒测试拦截率 | **28/34（82%）**（BGE-M3 余弦为 0/34） |
-| 接地过度拒答 | 1/100（短否定释义"不可以用洗涤剂"未匹配） |
+## Semantic Cache & Incremental Index
 
-机制：答案拆句 → 每句与检索 chunk 用 **BGE-Reranker 交叉编码器**逐对打分 → 无支撑句子标记/拒答 → 引用审计逐条核对 LLM 声称的 `[来源: 第X页]`。引用由**系统计算**而非 LLM 声称。
-**投毒测试（对抗验证）**：对真实答案追加编造句（"本产品由核聚变反应堆提供动力。" 等），交叉编码器标记 82% 无支撑、35% 答案翻转拒答；残余漏网为"主题相关编造"——交叉编码器是相关性打分器，拦不住所有主题相关幻觉（弗兰肯斯坦边界）。另有 1/100 过度拒答（正确但被否定释义的短句）。两个边界均已诚实记录。
+- **Cache key 防 stale**：`query + corpus_version + schema_version + doc_filter`——知识库更新或响应契约变化 → 缓存自动失效；doc_filter 隔离跨文档命中。
+- **Cache eval 指标**：hit rate 之外重点看 **false-hit rate**（相似 ≠ 同义），当前 demo 基准 false-hit = 0.0。
+- **Incremental Index**：SHA256 manifest 原子写（tmp + rename）；per-file 容错；chunk_id 稳定派生（document_id|page|chunk_index）。Milvus Lite 无事务 → 删除旧+写新非原子（文档化限制）。
 
-### 关键发现
+## Application Features
 
-- **V2 性价比最优**：MRR 提升 10.5%，仅增加 0.15s 延迟
-- **V3 质量最优**：全部指标达到顶峰，代价是 6x 延迟（Reranker 逐对精读）
-- **V4 最安全**：越界问题正确拒答，Context Recall 最高（重试机制补上了漏掉的 Chunk）
-- **V5 零浪费**：未变化文档 39 个 Chunk 全部复用，0 次无效 Embedding
-- **V6 可复现**：引用由 BGE-M3 余弦"计算"而非 LLM 声称，投毒测试证明能拦截编造句
+- **Q&A**：v1 契约（answer / citations / grounding / usage / latency / cache / request_id），SSE 流式（stage 事件 + demo token 流），停止生成（CancelledError 不包装 500）。
+- **Evidence Panel（developer）**：Dense rank / BM25 rank / RRF score / Rerank score / chunk_id / page——证明 Hybrid Retrieval 真实实现。
+- **Citation UI**：点击引用展开 source/page/excerpt + 各通道分数。
+- **Knowledge Base**：文档列表（demo 内置语料）/ 上传（真实模式，MAX_UPLOAD_MB / MAX_PDF_PAGES 配置化）。
+- **Experiments 页面**：从 Experiment Registry 真实读取（`runs/`）；无 run → 显示 no verified run。
+- **System Status**：embedding / reranker / vector store / gateway 熔断状态 / cache / corpus version（不含 secret）。
 
-### 指标解释
+## Observability
 
-| 指标 | 一句话解释 |
-|---|---|
-| Recall@5 | 前 5 条结果里能找到正确答案的概率 |
-| MRR | 第一条正确答案排在第几名（越靠前越高） |
-| Top-1 Hit | 第一条结果就命中正确答案的概率 |
-| Faithfulness | 生成的答案是否基于原文（而不是模型编的） |
-| Context Precision | 返回的 5 条结果中有几条真的相关 |
-| Context Recall | 标准答案的关键信息被检索到的段落覆盖了多少 |
+- request_id 全链路；统一错误 envelope；`/health/live`（存活）/ `/health/ready`（真实检查，不可用 503）/ `/version`（app_version/pipeline_version/git_commit 分离）。
+- Prometheus `/metrics`：http/rag 分阶段 latency、llm 调用/失败/重试、provider failover、circuit open、cache hit/miss、grounding rejections、input/output tokens（不把 query/request_id 当 label）。
+- LLM Gateway：retry / circuit breaker / provider failover / timeout；usage 缺失 → null 不伪造 0。
 
----
-
-## 七、项目结构
-
-```
-.
-├── main.py                     # FastAPI 入口
-├── requirements.txt            # Python 依赖
-├── pyproject.toml              # 项目配置
-├── .env.example                # 环境变量模板（无真实密钥）
-├── README.md                   # 你正在看的文件
-│
-├── src/
-│   ├── config/settings.py      # 统一配置（环境变量读取）
-│   ├── infra/                  # 基础设施适配器
-│   │   ├── embedder.py         #   BGE-M3 封装
-│   │   ├── reranker.py         #   BGE-Reranker 封装
-│   │   ├── llm_client.py       #   LLM API 客户端
-│   │   ├── vlm_client.py       #   VLM API 客户端
-│   │   └── milvus_client.py    #   Milvus 适配器
-│   ├── ingestion/              # 文档摄取
-│   │   ├── document.py         #   Document + Chunk 数据模型
-│   │   ├── pdf_parser.py       #   PDF 文本/表格/图片提取
-│   │   ├── chunker.py          #   文本切片
-│   │   ├── manifest.py         #   文档清单 + SHA256 指纹
-│   │   └── incremental.py      #   增量更新索引器
-│   ├── retrieval/              # 检索模块
-│   │   ├── retriever.py        #   Dense 检索器 (BGE-M3 + Milvus)
-│   │   ├── bm25.py             #   BM25 关键词检索器
-│   │   ├── hybrid_retriever.py #   混合检索 + RRF 融合
-│   │   └── reranked_retriever.py # 二阶段精排 (Hybrid → Reranker)
-│   ├── generation/generator.py # LLM 答案生成（含引用格式）
-│   ├── workflow/verified_qa.py # LangGraph 可信问答流程
-│   ├── workflow/grounding.py   # V6 确定性句级接地验证（BGE-M3 余弦）
-│   ├── eval/                   # 评测系统
-│   │   ├── metrics.py          #   LLM-as-Judge 指标
-│   │   ├── ragas_patch.py      #   RAGAS 兼容补丁
-│   │   └── doc_registry.py     #   source_document → source_file 映射（doc 过滤）
-│   └── api/                    # FastAPI 接口
-│       ├── routes.py           #   路由定义
-│       └── deps.py             #   依赖注入
-│
-├── frontend/                   # React 19 前端
-│   └── src/pages/
-│       ├── Dashboard.tsx       #   仪表盘
-│       ├── QAPanel.tsx         #   维保问答
-│       ├── KnowledgeBase.tsx   #   知识库管理（PDF 上传）
-│       ├── Experiments.tsx     #   实验评估对比
-│       └── SystemStatus.tsx    #   系统状态
-│
-├── configs/experiments/        # 实验版本配置文件
-│   ├── v1_multimodal.yaml
-│   ├── v2_hybrid.yaml
-│   ├── v3_rerank.yaml
-│   └── v4_verified.yaml
-│
-├── scripts/                    # 运行脚本
-│   ├── smoke_test.py           #   Phase 0 冒烟测试
-│   ├── ingest.py               #   文档入库
-│   ├── query.py                #   命令行问答
-│   ├── compare_v3.py           #   V2 vs V3 对比
-│   ├── incremental_update.py   #   增量更新
-│   ├── final_evaluation.py     #   最终评测（支持 --dataset/--retrieval-only）
-│   ├── run_v6_eval.py          #   V6 接地评测 + 阈值扫描 + V4 对比
-│   ├── build_extended_dataset.py # 扩展数据集（+8 图片题 +15 Ecovacs 题）
-│   └── check_doc_filter.py     #   doc 级过滤隔离性验证
-│
-├── docs/                       # 项目文档
-│   ├── PROJECT_CHARTER.md      #   项目章程
-│   ├── ARCHITECTURE.md         #   架构设计
-│   ├── DATA_CONTRACTS.md       #   数据契约
-│   ├── DECISIONS.md            #   决策日志
-│   └── EXPERIMENT_PROTOCOL.md  #   实验协议
-│
-├── tests/                      # 测试
-├── data/                       # 数据（说明书 PDF + 评测数据集）
-└── storage/                    # 运行结果
-```
-
----
-
-## 八、快速开始
-
-### 环境要求
-
-- Python 3.11+
-- NVIDIA GPU（可选，CPU 也能跑但慢）
-- 操作系统：Windows / Linux / macOS
-
-### 1. 安装依赖
+## Demo Mode（无 API key / GPU / 模型下载）
 
 ```bash
-pip install -r requirements.txt
+DEMO_MODE=true python -m uvicorn main:app --port 8000
+# 或 Docker 一键：
+DEMO_MODE=true docker compose up --build
 ```
 
-### 2. 配置环境变量
+- 内置**合成硬件手册语料**（20 chunks，公开可分发，非真实品牌手册）。
+- FakeEmbedder / FakeReranker / FakeMilvusClient / DemoLLM 复用**真实管线代码**（Hybrid→RRF→Rerank→Grounding→Cache），确定性可复现。
+- 页面显著 DEMO MODE 标记；输出带「DEMO 演示模式 · 非真实维修结论」。
+- 可完整体验：检索 → 引用 → 接地 → 缓存命中 → 越界拒答 → SSE 流式。
+
+## Quick Start
 
 ```bash
-cp .env.example .env
+# 1. Demo（推荐先体验）
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"
+DEMO_MODE=true .venv/Scripts/python -m uvicorn main:app --port 8000
+cd frontend && npm ci && npm run dev   # http://127.0.0.1:5173
+
+# 2. 真实模型开发
+#    .env 配置 LLM/VLM API key + 本地 BGE 模型（EMBEDDING_MODEL/RERANKER_MODEL）
+python scripts/ingest.py               # 索引真实说明书
+python -m uvicorn main:app --port 8000
+
+# 3. Docker
+docker compose up --build
 ```
 
-编辑 `.env`，填入你的 API Key：
-
-```ini
-LLM_BASE_URL=https://api.deepseek.com
-LLM_API_KEY=你的Key
-LLM_MODEL=deepseek-v4-flash
-
-VLM_BASE_URL=https://你的VLM地址/v1
-VLM_API_KEY=你的Key
-VLM_MODEL=qwen3-vl-32b-thinking
-
-MILVUS_URI=milvus.db
-EMBEDDING_MODEL=BAAI/bge-m3
-RERANKER_MODEL=BAAI/bge-reranker-large
-```
-
-### 3. 运行冒烟测试
-
-验证所有基础设施组件是否正常工作：
+## Testing & CI
 
 ```bash
-python -m pytest -q tests/smoke
-python scripts/smoke_test.py
+ruff check src/ tests/ scripts/ && ruff format --check src/ tests/ scripts/
+mypy src                                   # typecheck gate（fail → fail）
+pytest tests/ --cov=src --cov-branch       # coverage gate（fail_under=70）
+python scripts/demo_retrieval_eval.py      # 离线检索基准（CI 回归）
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
+npx playwright test                        # E2E（Demo Mode）
 ```
 
-### 4. 启动后端
+CI（`.github/workflows/ci.yml`）：backend（ruff/format/**mypy**/pytest/**coverage**/offline eval/pip-audit）+ frontend（lint/typecheck/**vitest**/build/npm audit）+ **E2E（Playwright Demo）** + **Docker build** + full-eval（workflow_dispatch，需 MILVUS_URI+模型）。PR 不调用真实 LLM / 不产生费用。
 
-```bash
-uvicorn main:app --host 127.0.0.1 --port 8000
-```
+## Historical Results（V0→V9）
 
-访问 http://127.0.0.1:8000/docs 查看 Swagger API 文档。
+> ⚠️ 以下为历史实验数字（旧环境 artifact），**本重构后未重跑 → NOT VERIFIED AFTER REFACTOR**。
+> 保留作为 RAG 技术演进故事（Dense → 多模态 → Hybrid → Rerank → Verify → 增量 → 确定性 Grounding → Gateway → 多文档 → 语义缓存）。
+> 当前可信数字见上方 Key Metrics / Current Verified Benchmark（可追溯 run_id）。
 
-### 5. 启动前端（可选）
+| 版本 | 做了什么 | 历史核心指标 |
+|---|---|---|
+| V0 | Dense Retrieval | Recall@5 0.89 |
+| V1 | + 多模态（VLM caption） | 覆盖图片问题 |
+| V2 | + Hybrid (BM25+RRF) | MRR 0.76→0.84 |
+| V3 | + Cross-Encoder Rerank | Recall@5 0.88→0.91，延迟 6x |
+| V4 | + LangGraph Verify | 越界拒答 |
+| V5 | + 增量索引 | unchanged 0 embedding |
+| V6 | + 确定性 Grounding | 投毒测试拦截 82% |
+| V7 | + LLM Gateway | retry/熔断/failover |
+| V8 | + 多文档 + doc_filter | 123 题 retrieval-only MRR 0.89 |
+| V9 | + 语义缓存 | 精确命中 ~31ms |
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Known Limitations（诚实声明）
 
-访问 http://localhost:5173。
+- **Golden Dataset 规模有限**（100/123 条，领域窄：智能硬件说明书）。
+- **Grounding 是 relevance 不是 entailment**：拦不住主题相关编造（Frankenstein 边界）。
+- **VLM 依赖**：多模态走 VLM caption → text → BGE，**不是** native image-text unified embedding（README 不夸大）。
+- **Milvus Lite 单进程**：无事务，删除+重建非原子；不能多 worker。
+- **Semantic Cache 是近似**：语义命中可能 false-hit（有 corpus_version/schema 失效缓解）。
+- **未做互联网规模压力测试**；业务数据规模有限。
+- **Demo 是 deterministic fake**：合成语料 + 确定性模型，非真实诊断/维修结论。
+- 未接入 Query Rewrite / Adaptive Retrieval / Native Multimodal（无 benchmark 证明收益前不加——见 docs/DECISIONS.md）。
 
----
+## Project Origin / License
 
-## 八·五、工程化升级（2026-08）
+本项目在开源项目 `luxharves/-RAG-`（2026-08-25 快照）基础上进行生产化工程改造（评估体系 / 可靠性 / 可观测性 / 测试 / CI / Docker / Demo）。商业说明书 PDF 不随仓库分发（见 `docs/DATA_LICENSE.md`）。License：MIT。
 
-本项目已完成 **Production-style RAG Engineering 升级**，在保留 V0–V9 全部实验资产的前提下补齐工程闭环：
+## 文档
 
-- **Evaluation Foundation**：统一检索指标（Recall@K/MRR/**nDCG@K**）、确定性引用校验、失败分类（12 类）、Bootstrap CI + McNemar、Experiment Registry（`runs/`）、数据集版本化 + calibration/test split、分阶段延迟（p50/p95）。
-- **Backend Production**：request_id、统一错误 envelope、`/health/live|ready`、`/version`（semver）、Prometheus `/metrics`、领域异常、应用工厂。
-- **RAG Reliability**：RetrievedChunk 统一契约、检索参数配置化（消除 magic number）、Grounding 阈值校准、Prompt Registry + 注入防御、语义缓存 **corpus_version 失效**。
-- **DevOps**：CI（无 API key 全绿）、Docker + docker-compose、pre-commit、Makefile、`docs/DATA_LICENSE.md`（商业说明书不随仓库分发）。
-
-> ⚠️ **指标真实性**：README 上文 V0–V4 指标为原仓库历史数据；重构后需在有 GPU/模型的环境**重跑**并注册 Experiment Run（`runs/`）后方可声称有效。本环境离线测试 **231 passed / 0 failed**。
-
-详细文档：
-[ENGINEERING_REPORT.md](ENGINEERING_REPORT.md) · [RESUME_METRICS.md](RESUME_METRICS.md) ·
-[TECHNICAL_TRADEOFFS.md](TECHNICAL_TRADEOFFS.md) ·
-[docs/ENGINEERING_AUDIT.md](docs/ENGINEERING_AUDIT.md) · [docs/ENGINEERING_ROADMAP.md](docs/ENGINEERING_ROADMAP.md) ·
-[docs/evaluation.md](docs/evaluation.md) · [docs/DATA_LICENSE.md](docs/DATA_LICENSE.md)
-
----
-
-## 九、致谢
-
-- [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) — Embedding 模型
-- [BAAI/bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3) — Reranker 模型
-- [Milvus](https://milvus.io/) — 向量数据库
-- [LangGraph](https://langchain-ai.github.io/langgraph/) — 流程编排
-- [RAGAS](https://docs.ragas.io/) — RAG 评测框架
+- [docs/FINAL_ENGINEERING_AUDIT.md](docs/FINAL_ENGINEERING_AUDIT.md) — 收尾审计
+- [docs/FINAL_ENGINEERING_REPORT.md](docs/FINAL_ENGINEERING_REPORT.md) — 最终工程报告
+- [docs/CURRENT_RESUME_METRICS.md](docs/CURRENT_RESUME_METRICS.md) — 当前 commit 指标
+- [docs/RAG_ENGINEERING_DEEP_DIVE.md](docs/RAG_ENGINEERING_DEEP_DIVE.md) — RAG 工程深潜（含代码证据）
+- [docs/INTERVIEW_GUIDE.md](docs/INTERVIEW_GUIDE.md) — 面试深挖 30 问
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) / [docs/DATA_CONTRACTS.md](docs/DATA_CONTRACTS.md) / [docs/EXPERIMENT_PROTOCOL.md](docs/EXPERIMENT_PROTOCOL.md) / [docs/DECISIONS.md](docs/DECISIONS.md)

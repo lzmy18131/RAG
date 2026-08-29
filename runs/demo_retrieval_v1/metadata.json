@@ -1,0 +1,9 @@
+{
+  "run_id": "demo_retrieval_v1",
+  "timestamp": "2026-08-29T12:18:55.762802+00:00",
+  "git_commit": "36effc1",
+  "dataset_version": "demo_golden_v1",
+  "dataset_hash": "245f6000f970",
+  "corpus_version": "demo-corpus-v1",
+  "notes": "Demo Mode 确定性检索基准（CI 离线回归；非真实模型 benchmark）"
+}
