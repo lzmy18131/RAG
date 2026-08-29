@@ -19,7 +19,7 @@ cache_lookup → hybrid retrieve (dense+BM25+RRF) → rerank → relevance check
 
 当前唯一可信基准：Demo 模式（合成语料 20 chunk、12 题、确定性可复现）`runs/demo_retrieval_v1/report.md`：
 **Recall@5 = 0.9167 / MRR = 0.9167 / nDCG@5 = 0.8792 / Hit@5 = 1.0**；语义缓存 exact 命中 12/12、false-hit rate 0.0。
-README 中的 V0–V9 历史数字（如 V3 Recall@5 0.88→0.91、V6 投毒拦截 82%）均为旧环境产物，**重构后未重跑 → NOT VERIFIED AFTER REFACTOR**（README L163、docs/FINAL_ENGINEERING_AUDIT.md L85）。
+README 中的 V0–V9 历史数字（如 V3 Recall@5 0.88→0.91、V6 投毒拦截 82%）均为旧环境产物，**重构后未重跑 → NOT VERIFIED AFTER REFACTOR**（README L163、docs/history/FINAL_ENGINEERING_AUDIT.md L85）。
 
 ---
 
@@ -107,7 +107,7 @@ README L68 称之为"质量-延迟 Pareto"：rerank 只作用于 20 个候选而
 
 交叉编码器打分高 = **主题相关**，不等于**逻辑上被蕴含**。项目在 README L74 明示："这是 deterministic relevance-based grounding，`relevance ≠ entailment`——交叉编码器拦不住'主题相关但编造'（Frankenstein 边界），不是'彻底解决幻觉'"。
 
-证据在 `docs/EXPERIMENT_LOG.md` L107-110 的投毒实验（历史数字）：对真实答案追加编造句，BGE-M3 余弦拦截 **0/34**（相似度被主题词抬高），BGE-Reranker 拦截 **28/34（82%）**，残余 6/34 漏网均为"主题相关编造"——例如"核聚变反应堆提供动力"能匹配到手机连接 chunk 里的功率内容。`CrossEncoderScorer` 的 docstring（`grounding.py` L196-198）自己也承认它只是"far more discriminative than bi-encoder cosine for detecting topical-but-fabricated claims"，是判别力更强的**相关性**打分器，不是蕴含判别器。
+证据在 `docs/history/V0_V9_EXPERIMENTS.md` L107-110 的投毒实验（历史数字）：对真实答案追加编造句，BGE-M3 余弦拦截 **0/34**（相似度被主题词抬高），BGE-Reranker 拦截 **28/34（82%）**，残余 6/34 漏网均为"主题相关编造"——例如"核聚变反应堆提供动力"能匹配到手机连接 chunk 里的功率内容。`CrossEncoderScorer` 的 docstring（`grounding.py` L196-198）自己也承认它只是"far more discriminative than bi-encoder cosine for detecting topical-but-fabricated claims"，是判别力更强的**相关性**打分器，不是蕴含判别器。
 
 ## Q12. Citation validation 为什么必须程序控制？
 
@@ -146,7 +146,7 @@ LLM 调用是**又慢又容易挂的外部依赖**：单次尝试超时 60s（`s
 
 ## Q17. 为什么不增加 Multi-Agent / Query Rewrite / Native Multimodal？（诚实：无 benchmark 证明收益）
 
-这些是流行技术，但项目明确把它们列为 **P2 可选实验，默认不加**（`docs/FINAL_ENGINEERING_AUDIT.md` L117-124）：
+这些是流行技术，但项目明确把它们列为 **P2 可选实验，默认不加**（`docs/history/FINAL_ENGINEERING_AUDIT.md` L117-124）：
 
 - "Query Rewrite（**必须 benchmark 证明收益，默认不加**）"（L119）
 - "Native multimodal embedding（**对比 caption pipeline**：Image Recall/MRR/VRAM/Index size）"（L121）

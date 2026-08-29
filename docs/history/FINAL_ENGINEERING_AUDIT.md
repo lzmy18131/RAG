@@ -1,3 +1,12 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> 本文件是 Final Pass 起点（HEAD b66936a）的审计；所列 P0 问题在后续提交中已全部修复。
+
 # FINAL_ENGINEERING_AUDIT（RAG Final Pass · 以当前 HEAD 为唯一事实来源）
 
 > 生成时间：2026-08（Final Pass 起点）

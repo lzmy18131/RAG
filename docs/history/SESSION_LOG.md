@@ -1,3 +1,12 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> 开发过程会话日志（历史）。
+
 # Session Log
 
 ## 2026-07-17：项目初始化

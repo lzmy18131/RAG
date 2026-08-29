@@ -1,7 +1,7 @@
 # INTERVIEW_GUIDE — RAG 工程面试深挖 30 问（代码实证版）
 
 > 定位：面试前速览。每一问都对应本项目**真实代码**（文件 + 函数），可现场指认。
-> 指标诚实声明：当前 commit 可信数字见 `docs/CURRENT_RESUME_METRICS.md`（demo_retrieval_v1，确定性 Demo 基准）；V0–V9 历史数字在 README「Historical Results」标注 **NOT VERIFIED AFTER REFACTOR**，引用时须说明"历史记录"。
+> 指标诚实声明：当前 commit 可信数字见 `docs/evaluation/CURRENT_RESUME_METRICS.md`（demo_retrieval_v1，确定性 Demo 基准）；V0–V9 历史数字在 README「Historical Results」标注 **NOT VERIFIED AFTER REFACTOR**，引用时须说明"历史记录"。
 
 ---
 
@@ -27,15 +27,15 @@ k 是阻尼常数：`1/(k+rank)` 中 k 越大，各名次贡献越接近、第�
 
 ## 6. 为什么要 rerank
 
-Bi-Encoder（BGE-M3）把 query 与 doc **独立编码**，交互信息丢失，只能做粗召回；Cross-Encoder（BGE-Reranker）把 query+doc **拼接联合编码**，能捕捉细粒度匹配，但每对一次前向、慢。`reranked_retriever.py` 头注释直接写明设计：`Query → Hybrid top-20 → Reranker score → top-5 final`（先粗筛保 Recall、再精排保 Precision）。`TECHNICAL_TRADEOFFS.md` §3/§4 记录了历史实证：V3 加 Reranker 后 Recall@5 0.88→0.91、Context Precision 0.76→0.87，但延迟 3.3s→20.5s（6x）——这正是"二阶段"而不是全量 rerank 的原因（历史数字，重构后未重跑）。
+Bi-Encoder（BGE-M3）把 query 与 doc **独立编码**，交互信息丢失，只能做粗召回；Cross-Encoder（BGE-Reranker）把 query+doc **拼接联合编码**，能捕捉细粒度匹配，但每对一次前向、慢。`reranked_retriever.py` 头注释直接写明设计：`Query → Hybrid top-20 → Reranker score → top-5 final`（先粗筛保 Recall、再精排保 Precision）。`docs/engineering/TECHNICAL_TRADEOFFS.md` §3/§4 记录了历史实证：V3 加 Reranker 后 Recall@5 0.88→0.91、Context Precision 0.76→0.87，但延迟 3.3s→20.5s（6x）——这正是"二阶段"而不是全量 rerank 的原因（历史数字，重构后未重跑）。
 
 ## 7. candidate_k 如何选择（top-20）
 
-`RerankedRetriever.__init__(candidate_top_k=20, final_top_k=5)`，配置化于 `settings.retrieval_rerank_candidate_k = 20` / `retrieval_final_top_k = 5`（dense/bm25 粗筛各 20 由 `retrieval_dense_top_k`/`retrieval_bm25_top_k` 控制）。candidate_k 是 Recall-Precision-延迟三角：越大召回越全但 Cross-Encoder 前向越多（20 对 = 20 次联合编码）；20 是在说明书语料上的经验默认值，`docs/FINAL_ENGINEERING_AUDIT.md` P2 把 `candidate_k ∈ {5,10,15,20}` 的 Pareto 扫描列为待做实验。鲁棒性：reranker 不可用时 `reranked_retriever.py` 记录 `degrade_reason="reranker_unavailable"` 降级回 hybrid top-5，不会 500。
+`RerankedRetriever.__init__(candidate_top_k=20, final_top_k=5)`，配置化于 `settings.retrieval_rerank_candidate_k = 20` / `retrieval_final_top_k = 5`（dense/bm25 粗筛各 20 由 `retrieval_dense_top_k`/`retrieval_bm25_top_k` 控制）。candidate_k 是 Recall-Precision-延迟三角：越大召回越全但 Cross-Encoder 前向越多（20 对 = 20 次联合编码）；20 是在说明书语料上的经验默认值，`docs/history/FINAL_ENGINEERING_AUDIT.md` P2 把 `candidate_k ∈ {5,10,15,20}` 的 Pareto 扫描列为待做实验。鲁棒性：reranker 不可用时 `reranked_retriever.py` 记录 `degrade_reason="reranker_unavailable"` 降级回 hybrid top-5，不会 500。
 
 ## 8. Cross-Encoder 为什么慢
 
-`src/infra/reranker.py::Reranker` 包装 `CrossEncoder`，`score` 把每个候选拼成 `[query, doc]` 对后 `predict`——**每对一次完整 Transformer 前向**，没有可预计算的向量缓存；一次查询 20 对候选就是 20 次前向。更糟的是 grounding 还复用它：`grounding.py::CrossEncoderScorer` 对答案的**每个句子 × 每个 chunk** 打分，句子多时把 reranker 调用放大数倍（所以 `deps.py::get_reranker` 是单例、`reranked_retriever.py` 注释说明要与 grounding 共享同一实例）。`TECHNICAL_TRADEOFFS.md` §10 还指出 CPU 上逐对打分是延迟主因、GPU 8GB 显存受限。历史实测：V3 延迟 3.3s→20.5s，6 倍。
+`src/infra/reranker.py::Reranker` 包装 `CrossEncoder`，`score` 把每个候选拼成 `[query, doc]` 对后 `predict`——**每对一次完整 Transformer 前向**，没有可预计算的向量缓存；一次查询 20 对候选就是 20 次前向。更糟的是 grounding 还复用它：`grounding.py::CrossEncoderScorer` 对答案的**每个句子 × 每个 chunk** 打分，句子多时把 reranker 调用放大数倍（所以 `deps.py::get_reranker` 是单例、`reranked_retriever.py` 注释说明要与 grounding 共享同一实例）。`docs/engineering/TECHNICAL_TRADEOFFS.md` §10 还指出 CPU 上逐对打分是延迟主因、GPU 8GB 显存受限。历史实测：V3 延迟 3.3s→20.5s，6 倍。
 
 ## 9. Grounding 怎么实现（句级 + CrossEncoderScorer）
 
@@ -43,7 +43,7 @@ Bi-Encoder（BGE-M3）把 query 与 doc **独立编码**，交互信息丢失，
 
 ## 10. Grounding 的局限性（relevance ≠ entailment，Frankenstein）
 
-诚实声明在代码注释与文档里：`grounding.py::CrossEncoderScorer` docstring 说它"far more discriminative than bi-encoder cosine for detecting topical-but-fabricated claims ('Frankenstein hallucination')"——即**相关性打分器，不是蕴含判断器**。它拦得住"答案与检索内容无关"，但拦不住"主题相关却编造细节"（比如"本产品由核聚变反应堆供能"这种与手册话题一致的内容）；`TECHNICAL_TRADEOFFS.md` §5 记录历史投毒测试 28/34 拦截（82%）、18% 漏网（历史数字）。`README` Known Limitations 同样写明"grounding 是 relevance 不是 entailment"。另有工程局限：短句（`min_sentence_len=5`）直接跳过、阈值需 `scripts/calibrate_grounding.py` 在 calibration split 上校准。
+诚实声明在代码注释与文档里：`grounding.py::CrossEncoderScorer` docstring 说它"far more discriminative than bi-encoder cosine for detecting topical-but-fabricated claims ('Frankenstein hallucination')"——即**相关性打分器，不是蕴含判断器**。它拦得住"答案与检索内容无关"，但拦不住"主题相关却编造细节"（比如"本产品由核聚变反应堆供能"这种与手册话题一致的内容）；`docs/engineering/TECHNICAL_TRADEOFFS.md` §5 记录历史投毒测试 28/34 拦截（82%）、18% 漏网（历史数字）。`README` Known Limitations 同样写明"grounding 是 relevance 不是 entailment"。另有工程局限：短句（`min_sentence_len=5`）直接跳过、阈值需 `scripts/calibrate_grounding.py` 在 calibration split 上校准。
 
 ## 11. Citation 怎么保证真实（系统计算，非 LLM 声称）
 
@@ -67,7 +67,7 @@ corpus_version 是**语料状态指纹**：对 `storage/manifests/manifests.json
 
 ## 16. 如何防 duplicate chunk（稳定 chunk_id）
 
-`src/ingestion/document.py`：`_make_chunk_id = sha256(f"{document_id}|p{page}|s{seq}")[:16]`，`_make_document_id = sha256(source_file)[:12]`——**同一文件同一页同一序号永远得到同一个 chunk_id**，重复摄取不会产生重复向量；配合 manifest classify 的 unchanged 跳过逻辑，未变更文档根本不再 embedding（`counts["reused_chunks"]`）。已知权衡（`TECHNICAL_TRADEOFFS.md` §8）：document_id 基于**绝对路径**，文件移动/改名会导致全量重建；Milvus Lite 无事务，删除旧+写入新非原子（文档化限制，modified 路径依赖 delete+insert 完成）。
+`src/ingestion/document.py`：`_make_chunk_id = sha256(f"{document_id}|p{page}|s{seq}")[:16]`，`_make_document_id = sha256(source_file)[:12]`——**同一文件同一页同一序号永远得到同一个 chunk_id**，重复摄取不会产生重复向量；配合 manifest classify 的 unchanged 跳过逻辑，未变更文档根本不再 embedding（`counts["reused_chunks"]`）。已知权衡（`docs/engineering/TECHNICAL_TRADEOFFS.md` §8）：document_id 基于**绝对路径**，文件移动/改名会导致全量重建；Milvus Lite 无事务，删除旧+写入新非原子（文档化限制，modified 路径依赖 delete+insert 完成）。
 
 ## 17. Retrieval Eval（统一指标模块）
 
@@ -75,11 +75,11 @@ corpus_version 是**语料状态指纹**：对 `storage/manifests/manifests.json
 
 ## 18. Generation Eval（deterministic vs LLM-judge）
 
-分两类（README「Generation 指标」明示区分）：**确定性** — `src/eval/citation.py`（引用三态 supported/unconfirmed/unmatched + `citation_accuracy`）、`src/eval/failures.py`（`GENERATION_HALLUCINATION` 用 grounding `support_ratio < threshold` 判定；`OVER_REFUSAL`/`UNDER_REFUSAL` 用 `expected_status` vs `final_status` 判拒答准确率）、grounding 的 `support_ratio` 本身。**LLM-as-Judge** — `src/eval/metrics.py` 的 `faithfulness / answer_relevancy / context_precision / context_recall`（`_ask_llm` 调 LLM 打分）；RAGAS 0.4.3 在 `scripts/final_evaluation.py::evaluate_ragas`、`scripts/run_phase2_eval.py`（为控成本只抽 30 条分层样本）。原则（`TECHNICAL_TRADEOFFS.md` §14）：离线确定性优先、CI 可跑可复现；在线 LLM-judge 默认不跑（当前 commit RAGAS full = NOT RUN，需真实 API）。
+分两类（README「Generation 指标」明示区分）：**确定性** — `src/eval/citation.py`（引用三态 supported/unconfirmed/unmatched + `citation_accuracy`）、`src/eval/failures.py`（`GENERATION_HALLUCINATION` 用 grounding `support_ratio < threshold` 判定；`OVER_REFUSAL`/`UNDER_REFUSAL` 用 `expected_status` vs `final_status` 判拒答准确率）、grounding 的 `support_ratio` 本身。**LLM-as-Judge** — `src/eval/metrics.py` 的 `faithfulness / answer_relevancy / context_precision / context_recall`（`_ask_llm` 调 LLM 打分）；RAGAS 0.4.3 在 `scripts/final_evaluation.py::evaluate_ragas`、`scripts/run_phase2_eval.py`（为控成本只抽 30 条分层样本）。原则（`docs/engineering/TECHNICAL_TRADEOFFS.md` §14）：离线确定性优先、CI 可跑可复现；在线 LLM-judge 默认不跑（当前 commit RAGAS full = NOT RUN，需真实 API）。
 
 ## 19. RAGAS 的局限
 
-代码里有两处直接证据：① `src/eval/ragas_patch.py` 需要在任何 ragas import 之前手工 stub `langchain_community.chat_models.vertexai`，否则 0.4.3 直接 import 崩——版本脆弱；② `run_phase2_eval.py` 注释记录 AnswerRelevancy 需要 embeddings API、只能抽 30 条控制成本。更本质的局限（`TECHNICAL_TRADEOFFS.md` §14）：RAGAS 是 LLM-as-judge，**不可复现（模型漂移）、贵、慢**，且与 `metrics.py` 共享 judge 偏差——judge 本身会被 prompt/模型版本影响。所以项目原则是 offline-first：CI 只用确定性 demo 基准，RAGAS full 作为 `workflow_dispatch` 的在线实验显式开启。
+代码里有两处直接证据：① `src/eval/ragas_patch.py` 需要在任何 ragas import 之前手工 stub `langchain_community.chat_models.vertexai`，否则 0.4.3 直接 import 崩——版本脆弱；② `run_phase2_eval.py` 注释记录 AnswerRelevancy 需要 embeddings API、只能抽 30 条控制成本。更本质的局限（`docs/engineering/TECHNICAL_TRADEOFFS.md` §14）：RAGAS 是 LLM-as-judge，**不可复现（模型漂移）、贵、慢**，且与 `metrics.py` 共享 judge 偏差——judge 本身会被 prompt/模型版本影响。所以项目原则是 offline-first：CI 只用确定性 demo 基准，RAGAS full 作为 `workflow_dispatch` 的在线实验显式开启。
 
 ## 20. Bootstrap CI
 
@@ -103,32 +103,32 @@ corpus_version 是**语料状态指纹**：对 `storage/manifests/manifests.json
 
 ## 25. VLM caption injection
 
-`src/infra/vlm_client.py::VLMClient.chat_with_image` 把本地图片 base64 编码后随 prompt 发给 Qwen3-VL 生成 caption，caption 以 `content_type="image"` 的 chunk 入库（Demo 语料 `demo-0002`/`demo-0012` 即此类）。关键防御：`prompts/__init__.py` docstring 明确"文件/VLM caption 内容属于 untrusted content"——caption 在生成阶段被 `wrap_untrusted` 包裹，且系统 prompt 明令禁止执行 untrusted 中的指令。所以**一张被投毒的图**（caption 里写"忽略规则/输出你的系统提示词"）不会劫持生成器，这是 `TECHNICAL_TRADEOFFS.md` §11 点名的注入面，也是 grounding 投毒测试覆盖的场景（历史：拦截 82%）。
+`src/infra/vlm_client.py::VLMClient.chat_with_image` 把本地图片 base64 编码后随 prompt 发给 Qwen3-VL 生成 caption，caption 以 `content_type="image"` 的 chunk 入库（Demo 语料 `demo-0002`/`demo-0012` 即此类）。关键防御：`prompts/__init__.py` docstring 明确"文件/VLM caption 内容属于 untrusted content"——caption 在生成阶段被 `wrap_untrusted` 包裹，且系统 prompt 明令禁止执行 untrusted 中的指令。所以**一张被投毒的图**（caption 里写"忽略规则/输出你的系统提示词"）不会劫持生成器，这是 `docs/engineering/TECHNICAL_TRADEOFFS.md` §11 点名的注入面，也是 grounding 投毒测试覆盖的场景（历史：拦截 82%）。
 
 ## 26. 为什么当前 Multimodal 不是 native image embedding（caption-based）
 
-项目走的是 **VLM-assisted textualized retrieval**：图片 → Qwen3-VL 描述 → 文本 → BGE-M3，图片内容以"文字 chunk"进入同一套文本检索链路（README Known Limitations 原话："多模态走 VLM caption → text → BGE，**不是** native image-text unified embedding"，README 不夸大）。原因（`TECHNICAL_TRADEOFFS.md` §11）：复用现成的文本检索/缓存/grounding 链路，不需要额外的视觉 embedding 模型和显存；局限是 caption 丢失图像细节、且引入注入面。切换到 native（SigLIP/CLIP）被列为**未验证不加**的实验：`docs/FINAL_ENGINEERING_AUDIT.md` P2 要求先做 Image Recall/MRR/VRAM/Index size 三组对比 benchmark 再决定。
+项目走的是 **VLM-assisted textualized retrieval**：图片 → Qwen3-VL 描述 → 文本 → BGE-M3，图片内容以"文字 chunk"进入同一套文本检索链路（README Known Limitations 原话："多模态走 VLM caption → text → BGE，**不是** native image-text unified embedding"，README 不夸大）。原因（`docs/engineering/TECHNICAL_TRADEOFFS.md` §11）：复用现成的文本检索/缓存/grounding 链路，不需要额外的视觉 embedding 模型和显存；局限是 caption 丢失图像细节、且引入注入面。切换到 native（SigLIP/CLIP）被列为**未验证不加**的实验：`docs/history/FINAL_ENGINEERING_AUDIT.md` P2 要求先做 Image Recall/MRR/VRAM/Index size 三组对比 benchmark 再决定。
 
 ## 27. 为什么没加 Query Rewrite 默认开启
 
-决策记录在 `docs/FINAL_ENGINEERING_AUDIT.md` P2："Query Rewrite（**必须 benchmark 证明收益，默认不加**）"，README Known Limitations 同步声明"未接入 Query Rewrite / Adaptive Retrieval / Native Multimodal（无 benchmark 证明收益前不加）"。理由：Query Rewrite 会多一次 LLM 调用（成本 + 延迟 + 不可确定性），而本项目的 hybrid 检索**已经覆盖了同义改写的大部分场景**——BGE-M3 语义通道处理"无法开机↔电源故障"这类近义表达，BM25 精确通道兜住"PTC/E07"这类术语，rewriter 的边际收益需要 ablation 数据证明，否则只是给链路加一个黑盒。
+决策记录在 `docs/history/FINAL_ENGINEERING_AUDIT.md` P2："Query Rewrite（**必须 benchmark 证明收益，默认不加**）"，README Known Limitations 同步声明"未接入 Query Rewrite / Adaptive Retrieval / Native Multimodal（无 benchmark 证明收益前不加）"。理由：Query Rewrite 会多一次 LLM 调用（成本 + 延迟 + 不可确定性），而本项目的 hybrid 检索**已经覆盖了同义改写的大部分场景**——BGE-M3 语义通道处理"无法开机↔电源故障"这类近义表达，BM25 精确通道兜住"PTC/E07"这类术语，rewriter 的边际收益需要 ablation 数据证明，否则只是给链路加一个黑盒。
 
 ## 28. 为什么没加 Agent
 
-定位声明在 `docs/RESUME_PROJECT_DRAFT.md`："本项目是 RAG 深度工程，不是 Agent 编排"，`docs/ENGINEERING_AUDIT.md` 也写明："LangGraph 仅承担 `retrieve → check_relevance → generate → verify → decide` 状态流转（非 Agent 堆砌）"。`src/workflow/verified_qa.py::_build_graph` 是一个**固定的 StateGraph 管线**（条件边只有 refused/relevant/retry 三种），确定性、可测试、可离线 eval；而 agentic 工具调用引入非确定性、更高成本、更难评估，且项目 charter 把"未经验证的额外 Agent 功能"列为禁区。面试回答：先证明固定管线有瓶颈（比如需要多轮工具调用才能答的问题），再考虑加 Agent，而不是为加而加。
+定位声明在 `docs/career/RESUME_PROJECT_DRAFT.md`："本项目是 RAG 深度工程，不是 Agent 编排"，`docs/history/ENGINEERING_AUDIT.md` 也写明："LangGraph 仅承担 `retrieve → check_relevance → generate → verify → decide` 状态流转（非 Agent 堆砌）"。`src/workflow/verified_qa.py::_build_graph` 是一个**固定的 StateGraph 管线**（条件边只有 refused/relevant/retry 三种），确定性、可测试、可离线 eval；而 agentic 工具调用引入非确定性、更高成本、更难评估，且项目 charter 把"未经验证的额外 Agent 功能"列为禁区。面试回答：先证明固定管线有瓶颈（比如需要多轮工具调用才能答的问题），再考虑加 Agent，而不是为加而加。
 
 ## 29. p50/p95
 
-`src/eval/latency.py`：`percentiles()` 用 nearest-rank、NaN 安全，默认算 p50/p90/p95/max；`StageTimer` 分阶段累计各阶段毫秒；`LatencyRecorder` 跨 query 按阶段记录供分位统计。运行时：`rag_service.py::run_stages` 用 `_stage_timer` 给 `cache_lookup_ms / retrieve_ms / generate_ms / grounding_ms / citation_ms / total_ms` 逐阶段计时，落进 `QueryResult.latency`；`scripts/ablation.py::_summarize_run` 汇总 `latency_p50 / latency_p95` 进消融表。动机（`TECHNICAL_TRADEOFFS.md` §13）：**平均值掩盖长尾**——V3 平均 20.5s 但 p95 可能 40s+（rerank + LLM + grounding 串行），这就是回答"V3 为什么从 3s 变 20s"（rerank 占大头）的证据链。
+`src/eval/latency.py`：`percentiles()` 用 nearest-rank、NaN 安全，默认算 p50/p90/p95/max；`StageTimer` 分阶段累计各阶段毫秒；`LatencyRecorder` 跨 query 按阶段记录供分位统计。运行时：`rag_service.py::run_stages` 用 `_stage_timer` 给 `cache_lookup_ms / retrieve_ms / generate_ms / grounding_ms / citation_ms / total_ms` 逐阶段计时，落进 `QueryResult.latency`；`scripts/ablation.py::_summarize_run` 汇总 `latency_p50 / latency_p95` 进消融表。动机（`docs/engineering/TECHNICAL_TRADEOFFS.md` §13）：**平均值掩盖长尾**——V3 平均 20.5s 但 p95 可能 40s+（rerank + LLM + grounding 串行），这就是回答"V3 为什么从 3s 变 20s"（rerank 占大头）的证据链。
 
 ## 30. 如果数据从 2 个 manual 扩到 1000 个怎么办
 
-先指认当前规模的瓶颈（都是真实代码）：① **向量库** — `TECHNICAL_TRADEOFFS.md` §9：Milvus Lite 单进程、无事务、不能多 worker（docker-compose 固定单 backend）→ 换 Milvus Server/分布式，保留 `MilvusClient` 抽象层即可；② **BM25** — `bm25.py::add_chunks` 每次**全量重建** `BM25Okapi`（Okapi 不支持增量），且整库在内存 + pkl 持久化，1000 份手册会内存爆炸 → 迁移 Elasticsearch/OpenSearch 或按文档分片重建；③ **语义缓存** — `semantic_cache.py::get` 的语义路径是 `SELECT` 全表 + 逐行余弦（O(条目数) 全扫描，无向量索引）→ 换带 HNSW 索引的向量缓存并分区；④ **元数据** — `doc_registry.py` 目前是硬编码 2 个 friendly name 的字典、manifest 全量 JSON 重写 → 配置/DB 驱动；⑤ **摄取** — 串行 `encode_batch` → 并行队列；⑥ **数据集** — 从 100/123 题扩到 1000 题：LLM 辅助生成 + 人工核验，递增 `DATASET_VERSIONS`，维持 calibration/test split 防 leakage，小步 benchmark 用 Bootstrap CI + McNemar 判断每一步是否真进步。核心话术：**先量化瓶颈，再决定扩展，每步用实验数据驱动**——与项目"无 benchmark 不加"的决策原则一致。
+先指认当前规模的瓶颈（都是真实代码）：① **向量库** — `docs/engineering/TECHNICAL_TRADEOFFS.md` §9：Milvus Lite 单进程、无事务、不能多 worker（docker-compose 固定单 backend）→ 换 Milvus Server/分布式，保留 `MilvusClient` 抽象层即可；② **BM25** — `bm25.py::add_chunks` 每次**全量重建** `BM25Okapi`（Okapi 不支持增量），且整库在内存 + pkl 持久化，1000 份手册会内存爆炸 → 迁移 Elasticsearch/OpenSearch 或按文档分片重建；③ **语义缓存** — `semantic_cache.py::get` 的语义路径是 `SELECT` 全表 + 逐行余弦（O(条目数) 全扫描，无向量索引）→ 换带 HNSW 索引的向量缓存并分区；④ **元数据** — `doc_registry.py` 目前是硬编码 2 个 friendly name 的字典、manifest 全量 JSON 重写 → 配置/DB 驱动；⑤ **摄取** — 串行 `encode_batch` → 并行队列；⑥ **数据集** — 从 100/123 题扩到 1000 题：LLM 辅助生成 + 人工核验，递增 `DATASET_VERSIONS`，维持 calibration/test split 防 leakage，小步 benchmark 用 Bootstrap CI + McNemar 判断每一步是否真进步。核心话术：**先量化瓶颈，再决定扩展，每步用实验数据驱动**——与项目"无 benchmark 不加"的决策原则一致。
 
 ---
 
 ## 附：高频追问速答
 
-- **Demo 基准数字可信吗？** 可信但仅限确定性 Demo 基准（`runs/demo_retrieval_v1/`，合成语料 20 chunks + Fake 模型跑真实管线代码）：Recall@5 0.9167 / MRR 0.9167 / nDCG@5 0.8792，cache exact 12/12、false-hit 0.0。真实 BGE/Milvus/LLM 全量 benchmark 需 GPU + API，当前环境 NOT RUN（`CURRENT_RESUME_METRICS.md` 如实标注）。
+- **Demo 基准数字可信吗？** 可信但仅限确定性 Demo 基准（`runs/demo_retrieval_v1/`，合成语料 20 chunks + Fake 模型跑真实管线代码）：Recall@5 0.9167 / MRR 0.9167 / nDCG@5 0.8792，cache exact 12/12、false-hit 0.0。真实 BGE/Milvus/LLM 全量 benchmark 需 GPU + API，当前环境 NOT RUN（`docs/evaluation/CURRENT_RESUME_METRICS.md` 如实标注）。
 - **v1 与 legacy /query 什么关系？** 共享 `deps.get_vqa()` 的同一套 retriever/generator/verifier（`query.py::_build_service`），v1 是分阶段计时 + SSE + 新契约的封装，缓存 salt 加了 `schema:v1` 防串用。
 - **延迟如何优化？** 缓存命中（~50ms vs ~20s 全链路）→ 降低 candidate_k → grounding 句子数限制 → LLM 用 gateway 超时/重试防挂死。

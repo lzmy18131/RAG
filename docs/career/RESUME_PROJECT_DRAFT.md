@@ -1,4 +1,4 @@
-# RESUME_PROJECT_DRAFT（简历项目草稿 · 数字来源：docs/CURRENT_RESUME_METRICS.md）
+# RESUME_PROJECT_DRAFT（简历项目草稿 · 数字来源：docs/evaluation/CURRENT_RESUME_METRICS.md）
 
 > 面试前按当前 commit 真实数字核对后使用；禁止添加未验证业务成果。
 
@@ -27,7 +27,7 @@ Python · FastAPI · React 19 + Vite · BGE-M3（Dense）· BM25（jieba）· RR
 - ✗ "Native image-text unified embedding"（实际是 VLM caption → text → BGE）。
 - ✗ Agent 数量 / Multi-Agent（本项目是 RAG 深度工程，不是 Agent 编排）。
 
-## 可写入的数字（当前 commit 实测，见 docs/CURRENT_RESUME_METRICS.md）
+## 可写入的数字（当前 commit 实测，见 docs/evaluation/CURRENT_RESUME_METRICS.md）
 
 | 指标 | 值 |
 |---|---|

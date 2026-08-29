@@ -1,7 +1,7 @@
 # RAG Final Engineering Report
 
-> RAG Final Pass（收尾）· HEAD `cc7bb87` · 仓库 lzmy18131/RAG
-> 所有数字来自当前 commit 真实执行；NOT RUN 已注明。
+> RAG Final Pass（收尾）· HEAD `df7ebdb`（功能交付；本报告为当前唯一工程报告）· 仓库 lzmy18131/RAG
+> 所有数字来自当前 commit 真实执行；NOT RUN 已注明。当前指标见 `docs/evaluation/CURRENT_RESUME_METRICS.md`。
 
 ## Final Architecture
 
@@ -78,13 +78,15 @@ React 19 + Vite (frontend/) ──> FastAPI (main.py → src/api/app.py create_a
 |---|---|
 | ruff check / format | ✅ |
 | mypy src | ✅ 0 errors（54 files） |
-| pytest 离线子集 | ✅ **273 passed** |
-| pytest --cov | ✅ **77%**（gate 70） |
+| pytest（CI 子集，-k 排除 artifact/GPU 依赖） | ✅ **226 passed / 89 deselected** |
+| pytest --cov（branch-adjusted TOTAL） | ✅ **72.46%**（CI 子集；gate 70）· 本地全量 77.8% |
 | python scripts/demo_retrieval_eval.py | ✅ Recall@5=0.9167（run demo_retrieval_v1） |
 | python scripts/build_evals_datasets.py | ✅ golden_v1(100)/extended_v1(123) |
 | frontend lint/typecheck/vitest/build | ✅ / ✅ / 7 / ✅ |
-| npx playwright test | ✅ **7/7**（Demo Mode，本地） |
-| docker compose build | NOT RUN（无 Docker） |
+| npx playwright test | ✅ **7/7**（Demo Mode，本地全新缓存 + CI） |
+| docker compose 本地 | NOT RUN（无 Docker；镜像在 CI 构建验证） |
+
+> 本地全量 pytest = 294 passed / 21 failed；21 个失败均为 artifact/模型/Milvus 依赖用例（需 storage 产物/GPU/真实集合），CI 已用 `-k` 显式排除（见 `docs/evaluation/CURRENT_RESUME_METRICS.md`）。
 
 ## Known Limitations
 

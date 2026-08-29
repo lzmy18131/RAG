@@ -1,3 +1,12 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> V0–V9 阶段推进与验收记录；顶部「当前阶段」字样仅指当时，当前状态见 docs/evaluation/CURRENT_RESUME_METRICS.md。
+
 # Progress
 
 ## 当前状态

@@ -1,7 +1,8 @@
-# RESUME_METRICS（当前 commit 真实指标）
+# Historical Resume Metrics（Phase 1 / 旧 commit）
 
-> ⚠️ 最新数字以 **docs/CURRENT_RESUME_METRICS.md** 为准（记录 commit 与 run_id）。
-> 本文件保留为入口摘要；历史 V0-V9 数字见 README「Historical Results」（NOT VERIFIED AFTER REFACTOR）。
+> ⚠️ Historical document：以下数字记录于 Phase 1 / 旧 commit（含 `cc7bb87` 之前的中间态），**不是**当前 HEAD 指标。
+> 当前唯一 metrics source of truth：`docs/evaluation/CURRENT_RESUME_METRICS.md`（记录 commit 与 run_id）。
+> 历史 V0-V9 实验数字见 `docs/history/EXPERIMENT_LOG.md`（NOT VERIFIED AFTER REFACTOR）。
 
 ## 当前 HEAD 实测（Final Pass）
 

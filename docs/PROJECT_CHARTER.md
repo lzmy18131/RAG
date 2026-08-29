@@ -43,5 +43,5 @@
 - Qwen2-VL 和生成模型使用 OpenAI 兼容 API。
 - 开发环境优先使用 Milvus Lite；演示环境允许切换 Docker Milvus。
 - 实验通过配置文件选择，不通过 Git 分支区分版本。
-- 多模态图片先转换为带来源信息的语义文本，再使用 BGE-M3 进入统一向量空间。
+- 多模态为 **caption-based**：图片先经 VLM 转换为带来源信息的语义文本描述（caption），再与正文文本一起用 BGE-M3 进入同一文本检索链路；**不是** native image-text joint embedding。
 

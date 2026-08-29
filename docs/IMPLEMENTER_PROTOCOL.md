@@ -4,7 +4,7 @@
 
 ## 开始前
 
-1. 阅读 `docs/PROJECT_CHARTER.md`、`docs/ARCHITECTURE.md`、`docs/DATA_CONTRACTS.md`、`docs/ACCEPTANCE_MATRIX.md` 和 `docs/PROGRESS.md`。
+1. 阅读 `docs/PROJECT_CHARTER.md`、`docs/ARCHITECTURE.md`、`docs/DATA_CONTRACTS.md`、`docs/ACCEPTANCE_MATRIX.md` 和 `docs/history/PROGRESS.md`。
 2. 确认自己只执行当前指定 Phase。
 3. 检查当前工作区是否存在未说明的修改；发现冲突时停止并报告。
 

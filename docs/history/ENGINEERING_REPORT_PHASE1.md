@@ -1,8 +1,16 @@
+# Historical Engineering Report
+
+> This document records an earlier engineering phase (Phase 1 upgrade) and is **not** the current project status.
+> See `docs/engineering/FINAL_ENGINEERING_REPORT.md` for the latest verified state, and `docs/README.md` for the documentation index.
+
+---
+
 # -RAG- Engineering Upgrade Report
 
 > 升级周期：2026-08（多轮工程改造）
 > 基线：`luxharves/-RAG-`（2026-08-25 快照，无 git 历史，zip 分发）
 > 目标：从"可复现实验型 RAG 项目"升级为 Production-style RAG Engineering 项目
+> ⚠️ 以下为 Phase 1 阶段性记录（当时 Coverage/Demo/E2E/Typecheck 等均未完成）；当前状态以 FINAL_ENGINEERING_REPORT 为准。
 
 ---
 

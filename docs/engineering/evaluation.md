@@ -33,4 +33,5 @@ make eval-online     # 在线评估（需 API key）
 
 ## 当前可运行性
 
-- 本环境（无 GPU/模型/API）：离线测试 231 passed；RAG 全量指标 **NOT RUN**（需模型环境重跑后注册 Experiment Run）。
+- 当前 commit 实测（测试数 / 覆盖率 / Demo 基准）以 `docs/evaluation/CURRENT_RESUME_METRICS.md` 为准（记录 commit 与 run_id）。
+- 真实模型 RAG 全量指标（BGE-M3/Milvus/LLM，golden_100 / extended_123）**NOT RUN**：需 GPU + 模型权重 + API key；有环境后经 Experiment Registry 注册 run。

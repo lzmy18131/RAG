@@ -1,3 +1,12 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> Phase 0 实施任务书（历史阶段 brief）。
+
 # Phase 0 Implementation Brief
 
 ## 目标
@@ -14,8 +23,8 @@ src/infra/
 scripts/smoke_test.py
 tests/smoke/
 README.md
-docs/PROGRESS.md
-docs/SESSION_LOG.md
+docs/history/PROGRESS.md
+docs/history/SESSION_LOG.md
 ```
 
 可以创建必要的 `__init__.py`，但不要实现完整 RAG 业务流程。
@@ -52,7 +61,7 @@ python scripts/smoke_test.py
 - 配置读取测试通过。
 - BGE-M3、BGE-Reranker、Milvus、LLM 均有真实运行证据。
 - Qwen2-VL 有真实运行证据；如果 API 或图片条件未准备好，必须标记为阻塞，不得进入 Phase 1 的多模态实现，但可以先继续文本 Baseline。
-- 所有失败和未运行项记录在 `docs/PROGRESS.md`。
+- 所有失败和未运行项记录在 `docs/history/PROGRESS.md`。
 - 不得把本阶段的结构测试结果当成模型连通性结果。
 
 ## 完成报告格式

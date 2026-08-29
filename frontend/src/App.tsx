@@ -32,7 +32,7 @@ export default function App() {
             {item.label}
           </button>
         ))}
-        <div className="sidebar-footer">V5 · FastAPI</div>
+        <div className="sidebar-footer">rag-v9 · FastAPI</div>
       </nav>
 
       <main className="main-content">

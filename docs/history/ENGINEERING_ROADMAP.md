@@ -1,6 +1,15 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> 阶段路线图；其中标注的任务绝大多数已在 Final Pass 完成，本文件仅作历史参考。
+
 # -RAG- 工程路线图（ENGINEERING_ROADMAP）
 
-> 依据 `docs/ENGINEERING_AUDIT.md`。原则：**先补工程闭环，再加新算法**；不推倒重写；保护 V0–V9 实验资产可复现。
+> 依据 `docs/history/ENGINEERING_AUDIT.md`。原则：**先补工程闭环，再加新算法**；不推倒重写；保护 V0–V9 实验资产可复现。
 > 每项含 Impact / Effort / Risk / Files / Acceptance / Measurement。
 
 ---
@@ -19,8 +28,8 @@
 
 ## Phase 0 — Audit（已完成）
 
-- [x] `docs/ENGINEERING_AUDIT.md`
-- [x] `docs/ENGINEERING_ROADMAP.md`
+- [x] `docs/history/ENGINEERING_AUDIT.md`
+- [x] `docs/history/ENGINEERING_ROADMAP.md`
 - [x] BEFORE baseline（157 passed / 28 failed；前端 build/lint ✓；RAG 指标 NOT RUN）
 - [ ] git init + 基线提交
 
@@ -136,7 +145,7 @@
 | S1 | README 重构（结果优先 + 追溯 run_id；架构 Mermaid；Demo 指引） | 高 | 中 | 低 | README.md | 5 分钟看懂 |
 | S2 | docs/ARCHITECTURE.md + RAG_ENGINEERING_DEEP_DIVE.md + EXPERIMENT_ANALYSIS.md + ADR-001~006 + CONTRIBUTING + SECURITY | 高 | 中 | 低 | docs/ | 链接组织 |
 | S3 | 前端 README 定制 | 中 | 小 | 低 | frontend/README.md | 非模板 |
-| S4 | 最终重跑 benchmark → ENGINEERING_REPORT.md + RESUME_METRICS.md + TECHNICAL_TRADEOFFS.md | 高 | 中 | 低 | 根目录 | 真实数字 |
+| S4 | 最终重跑 benchmark → docs/history/ENGINEERING_REPORT_PHASE1.md + docs/history/RESUME_METRICS_PHASE1.md + docs/engineering/TECHNICAL_TRADEOFFS.md | 高 | 中 | 低 | 根目录 | 真实数字 |
 
 ---
 

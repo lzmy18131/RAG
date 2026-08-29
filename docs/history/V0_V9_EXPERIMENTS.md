@@ -1,4 +1,15 @@
-# Experiment Log
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> V0–V9 实验史（历史数字，重构后未重跑 → NOT VERIFIED AFTER REFACTOR）。
+>
+> 覆盖说明：V0/V1/V2/V6/V8/V9 有详细小节；V3（Reranker）与 V4（LangGraph Verify）的数据见下文 V8 表的合并行（0.976/0.959/0.892/0.829）；V5（增量索引）与 V7（LLM Gateway）的验收记录见 `docs/history/PROGRESS.md` 与 `docs/history/ROADMAP.md`。
+
+# Experiment Log（V0–V9 历史实验）
 
 ## V0 Baseline (Phase 2, locked)
 
@@ -83,7 +94,7 @@
 
 | Run ID | Version | Cases | Status | Notes |
 |---|---|---|---|---|
-| v6_grounding | V6 | 20 fixed + 2 edge | RUNNING | 句级 BGE-M3 余弦接地,替换 LLM 自查 |
+| v6_grounding | V6 | 20 fixed + 2 edge | DONE（历史） | 句级接地：初版 BGE-M3 余弦 → 决定性实验后换成 BGE-Reranker 交叉编码器（默认 `GROUNDING_SCORER=reranker`，当前实现） |
 
 ### Mechanism (打分器演化:余弦 → 交叉编码器)
 

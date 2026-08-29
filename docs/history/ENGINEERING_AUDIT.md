@@ -1,3 +1,12 @@
+<!-- =====================================================================
+  HISTORICAL DOCUMENT — 历史记录，不是当前工程状态。
+  当前唯一事实源：docs/engineering/FINAL_ENGINEERING_REPORT.md
+  （工程报告）与 docs/evaluation/CURRENT_RESUME_METRICS.md（指标）。
+  文档导航：docs/README.md。
+===================================================================== -->
+
+> 修复前（2026-08-29）的全量审计；审计发现的问题已在 Final Pass 中修复。
+
 # -RAG- 工程审计报告（ENGINEERING_AUDIT）
 
 > 审计日期：2026-08-29

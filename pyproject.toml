@@ -5,6 +5,11 @@ description = "Production-style Multimodal RAG & Evaluation System — 多模态
 requires-python = ">=3.11"
 license = { text = "MIT" }
 readme = "README.md"
+
+[project.urls]
+Homepage = "https://github.com/lzmy18131/RAG"
+Repository = "https://github.com/lzmy18131/RAG"
+Issues = "https://github.com/lzmy18131/RAG/issues"
 dependencies = [
     # Configuration
     "pydantic-settings>=2.0",
