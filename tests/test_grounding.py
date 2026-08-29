@@ -255,7 +255,8 @@ class TestGroundingVerifier:
 
     def test_citation_audit(self):
         v = self._verifier(audit_citations=True)
-        chunk = _chunk("电源充电完成", chunk_id="c1", page=24, source="D:\\docs\\manual.pdf")
+        chunk = _chunk("电源充电完成", chunk_id="c1", page=24, source="docs/manual.pdf")
+
         r = v.verify(
             "q",
             "电源充电完成[来源: manual.pdf, 第24页]。"
