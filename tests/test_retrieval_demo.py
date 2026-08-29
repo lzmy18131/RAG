@@ -78,7 +78,12 @@ class TestHybridRetriever:
 
     def test_degrade_to_bm25_when_dense_unavailable(self, env):
         _, _, bm25 = env
-        hr = HybridRetriever(collection_name="demo", bm25=bm25, client=FakeMilvusClient())
+
+        class _BoomClient(FakeMilvusClient):
+            def search(self, **kwargs):
+                raise RuntimeError("milvus down")
+
+        hr = HybridRetriever(collection_name="demo", bm25=bm25, client=_BoomClient())
         results = hr.search("故障码", top_k=3, mode="hybrid")
         assert results
         assert results[0]["retrieval_channel"] == "bm25"

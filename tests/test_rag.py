@@ -42,18 +42,27 @@ def test_eval_dataset_schema(eval_questions: list[dict]) -> None:
 
 
 def test_pdf_exists() -> None:
+    """data/raw_docs 必须有 PDF（商业说明书 gitignored，本机有；CI 无 → SKIP）。"""
     raw_docs = PROJECT_ROOT / "data" / "raw_docs"
     pdfs = list(raw_docs.glob("*.pdf"))
-    assert len(pdfs) > 0, f"No PDF found in {raw_docs}"
+    if not pdfs:
+        pytest.skip("无商业说明书 PDF（gitignored；CI 环境不提供）")
+    assert len(pdfs) > 0
+
+
+def _first_pdf() -> str:
+    raw_docs = PROJECT_ROOT / "data" / "raw_docs"
+    pdfs = sorted(raw_docs.glob("*.pdf"))
+    if not pdfs:
+        pytest.skip("无商业说明书 PDF（gitignored；CI 环境不提供）")
+    return str(pdfs[0])
 
 
 def test_parse_pdf() -> None:
     """PDF should parse into a Document with pages."""
     from src.ingestion.pdf_parser import parse_pdf
 
-    raw_docs = PROJECT_ROOT / "data" / "raw_docs"
-    pdfs = list(raw_docs.glob("*.pdf"))
-    doc = parse_pdf(str(pdfs[0]))
+    doc = parse_pdf(_first_pdf())
 
     assert doc.document_id, "Document ID should be set"
     assert doc.version, "Document version should be set"
@@ -66,9 +75,7 @@ def test_chunk_document() -> None:
     from src.ingestion.chunker import chunk_document
     from src.ingestion.pdf_parser import parse_pdf
 
-    raw_docs = PROJECT_ROOT / "data" / "raw_docs"
-    pdfs = list(raw_docs.glob("*.pdf"))
-    doc = parse_pdf(str(pdfs[0]))
+    doc = parse_pdf(_first_pdf())
     chunks = chunk_document(doc, chunk_size=500, overlap=50)
 
     assert len(chunks) > 0, "Should produce chunks"
@@ -87,9 +94,7 @@ def test_chunk_content_not_empty() -> None:
     from src.ingestion.chunker import chunk_document
     from src.ingestion.pdf_parser import parse_pdf
 
-    raw_docs = PROJECT_ROOT / "data" / "raw_docs"
-    pdfs = list(raw_docs.glob("*.pdf"))
-    doc = parse_pdf(str(pdfs[0]))
+    doc = parse_pdf(_first_pdf())
     chunks = chunk_document(doc, chunk_size=500, overlap=50)
 
     empty = [c for c in chunks if len(c.content.strip()) < 10]
