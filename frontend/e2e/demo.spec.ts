@@ -34,6 +34,11 @@ test("3. 重复提问 → 缓存命中徽章", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "维保问答" }).click();
   const input = page.getByPlaceholder(/输入问题/);
+  // 第一次提问（未命中缓存 → 无徽章）
+  await input.fill("机器人的电池容量是多少");
+  await page.getByRole("button", { name: "提交问题" }).click();
+  await expect(page.getByText(/DEMO/).first()).toBeVisible({ timeout: 30_000 });
+  // 第二次重复提问 → 语义缓存命中徽章
   await input.fill("机器人的电池容量是多少");
   await page.getByRole("button", { name: "提交问题" }).click();
   await expect(page.getByText(/缓存命中/)).toBeVisible({ timeout: 30_000 });
