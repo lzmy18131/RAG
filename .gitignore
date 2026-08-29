@@ -47,3 +47,6 @@ runs/
 
 # 商业说明书不随仓库分发（见 docs/DATA_LICENSE.md）
 data/raw_docs/*.pdf
+
+# 派生自商业说明书（见 docs/DATA_LICENSE.md）
+data/processed/v1_images/
