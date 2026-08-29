@@ -4,7 +4,8 @@
 
 ## 当前 commit
 
-- git commit：`1a388cd`（文档清理后最终 HEAD；功能交付 `df7ebdb`、E2E 冷启动修复 `f12eb75`、Demo 全链路 `cc7bb87`、基线 `b66936a`）
+- 数字实测 commit：`1a388cd`（该 commit CI 全绿；后续 docs 同步 commit 不改变任何数字）
+- 功能交付：`df7ebdb` · E2E 冷启动修复 `f12eb75` · Demo 全链路 `cc7bb87` · 基线 `b66936a`
 - 分支：main · origin = https://github.com/lzmy18131/RAG
 
 ## 当前 Verified Run
